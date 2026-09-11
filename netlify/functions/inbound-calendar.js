@@ -30,6 +30,18 @@ function unescapeText(v) {
     .trim();
 }
 
+// Outlook prefixes the calendar with a VTIMEZONE block that contains its
+// own DTSTART entries (the daylight-saving rules, dated 1601 at 02:00).
+// Reading those instead of the event's is the difference between the real
+// time and nonsense, so isolate the VEVENT before looking at properties.
+function eventLines(lines) {
+  const start = lines.findIndex(l => /^BEGIN:VEVENT\s*$/i.test(l));
+  if (start === -1) return lines;
+  let end = lines.findIndex((l, i) => i > start && /^END:VEVENT\s*$/i.test(l));
+  if (end === -1) end = lines.length;
+  return lines.slice(start + 1, end);
+}
+
 // Returns { value, params } for the first occurrence of a property.
 function getProp(lines, name) {
   const upper = name.toUpperCase();
@@ -239,9 +251,11 @@ export default async (request) => {
     return new Response('No calendar content', { status: 200 });
   }
 
-  const lines = unfold(icsText).split(/\r?\n/).map(l => l.trimEnd()).filter(Boolean);
+  const allLines = unfold(icsText).split(/\r?\n/).map(l => l.trimEnd()).filter(Boolean);
+  // METHOD sits on the VCALENDAR envelope, everything else on the VEVENT.
+  const lines = eventLines(allLines);
 
-  const methodProp = getProp(lines, 'METHOD');
+  const methodProp = getProp(allLines, 'METHOD');
   const method = methodProp ? String(methodProp.value).trim().toUpperCase() : 'REQUEST';
 
   const uidProp = getProp(lines, 'UID');
