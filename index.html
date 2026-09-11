@@ -125,14 +125,10 @@
 
   function lsGet(k){ try { return JSON.parse(localStorage.getItem(k)); } catch(e){ return null; } }
   function lsSet(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
-  function myClaims(){ return lsGet('tracey_claims') || []; }
-  function addClaim(id){ var a = myClaims(); if(a.indexOf(id)<0){ a.push(id); lsSet('tracey_claims',a);} }
-  function dropClaim(id){ lsSet('tracey_claims', myClaims().filter(function(x){return x!==id;})); }
-
   me = lsGet('tracey_me');
 
   async function loadNeeds(){
-    var r = await db.rpc('list_needs');
+    var r = await db.rpc('list_needs', { p_email: me ? me.email : null });
     if (r.error) { notice = 'Could not reach the schedule. Check your connection and reload.'; }
     else { needs = r.data || []; notice = ''; }
     render();
@@ -165,6 +161,7 @@
       + '<input type="text" id="r-name" placeholder="Your name" autocomplete="name" />'
       + '<input type="email" id="r-email" placeholder="Email for calendar invitations" autocomplete="email" />'
       + '<input type="tel" id="r-phone" placeholder="Phone (optional)" autocomplete="tel" />'
+      + '<p class="hint">Been here before? Enter the same email and everything you have signed up for comes straight back.</p>'
       + '<p class="hint">Only Tracey and the coordinators see your contact details. Other friends just see your first name next to what you have signed up for.</p>'
       + '<div class="err" id="r-err" style="display:none"></div>'
       + '<button class="btn primary" data-action="register">Continue</button></div>';
@@ -173,7 +170,7 @@
   function row(n){
     var c = catBy[n.category] || catBy.other;
     var filled = n.status === 'FILLED';
-    var mine = filled && myClaims().indexOf(n.id) >= 0;
+    var mine = filled && n.is_mine === true;
     var act;
     if (filled) {
       act = '<p class="vol">Covered by <strong>' + esc(mine ? 'you' : (n.volunteer_first || 'a friend')) + '</strong>'
@@ -294,6 +291,11 @@
       var r = await db.rpc('register_volunteer', { p_email: email, p_name: name, p_phone: phone });
       if (r.error) { err.textContent = 'Could not save that just now. Check your connection and try again.'; err.style.display='block'; return; }
       me = { name: name, email: email, phone: phone };
+      // Welcome back message if we already knew this address.
+      try {
+        var known = await db.rpc('find_volunteer', { p_email: email });
+        if (known && known.data && known.data.name) { me.name = name || known.data.name; }
+      } catch (e) {}
       lsSet('tracey_me', me);
       await loadNeeds(); return;
     }
@@ -304,7 +306,7 @@
       var r = await db.rpc('claim_need', { p_id: id, p_email: me.email, p_name: me.name });
       busy = null;
       if (r.error) { notice = 'Could not sign you up just now. Please try again.'; }
-      else if (r.data === true) { addClaim(id); notice = ''; }
+      else if (r.data === true) { notice = ''; }
       else { notice = 'Someone else just took that one. Here is the updated list.'; }
       await loadNeeds(); return;
     }
@@ -313,7 +315,7 @@
       if (!window.confirm('Free up this slot so someone else can take it?')) return;
       var rr = await db.rpc('release_need', { p_id: id, p_email: me.email });
       if (rr.error || rr.data !== true) { notice = 'Could not release that. Please refresh and try again.'; }
-      else { dropClaim(id); notice = ''; }
+      else { notice = ''; }
       await loadNeeds(); return;
     }
 
