@@ -146,6 +146,19 @@
     poll = setInterval(function(){ if(!coord && me) loadNeeds(); }, 10000);
   }
 
+  // Tells the coordinators that something changed. Deliberately not
+  // awaited: a slow or failing email must never hold up the page or
+  // stop someone signing up.
+  function notify(id, action) {
+    try {
+      fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: id, action: action })
+      }).catch(function(){});
+    } catch (e) {}
+  }
+
   function inviteBody(n){
     return ['Volunteer: ' + (n.volunteer_name||''), 'Status: FILLED', '',
       n.location ? ('Where: ' + n.location) : '', '',
@@ -306,7 +319,7 @@
       var r = await db.rpc('claim_need', { p_id: id, p_email: me.email, p_name: me.name });
       busy = null;
       if (r.error) { notice = 'Could not sign you up just now. Please try again.'; }
-      else if (r.data === true) { notice = ''; }
+      else if (r.data === true) { notice = ''; notify(id, 'claimed'); }
       else { notice = 'Someone else just took that one. Here is the updated list.'; }
       await loadNeeds(); return;
     }
@@ -315,7 +328,7 @@
       if (!window.confirm('Free up this slot so someone else can take it?')) return;
       var rr = await db.rpc('release_need', { p_id: id, p_email: me.email });
       if (rr.error || rr.data !== true) { notice = 'Could not release that. Please refresh and try again.'; }
-      else { notice = ''; }
+      else { notice = ''; notify(id, 'released'); }
       await loadNeeds(); return;
     }
 
@@ -331,3 +344,4 @@
 </script>
 </body>
 </html>
+
