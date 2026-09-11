@@ -118,38 +118,74 @@ function stripTags(text) {
 
 // ---------- finding the calendar part in the email --------------------
 
+// Walks the entire payload looking for anything that contains an
+// iCalendar body, including base64-encoded attachment content. Outlook
+// delivers the calendar as an inline alternative part in some cases and
+// as a real attachment in others, so we search everywhere rather than
+// guessing which.
+function looksLikeBase64(s) {
+  return typeof s === 'string' && s.length > 100 &&
+         /^[A-Za-z0-9+/=\r\n\s]+$/.test(s);
+}
+
+function tryDecode(s) {
+  try {
+    const out = Buffer.from(s, 'base64').toString('utf8');
+    return out.includes('BEGIN:VCALENDAR') ? out : null;
+  } catch (e) { return null; }
+}
+
 function findCalendarText(payload) {
-  // CloudMailin JSON format: attachments carry content + content_type.
-  const candidates = [];
+  const found = [];
+  const seen = new Set();
 
-  if (Array.isArray(payload.attachments)) {
-    payload.attachments.forEach(a => {
-      const type = (a.content_type || a.contentType || '').toLowerCase();
-      const name = (a.file_name || a.fileName || '').toLowerCase();
-      if (type.includes('text/calendar') || name.endsWith('.ics')) {
-        let content = a.content || '';
-        if ((a.content_transfer_encoding || '').toLowerCase() === 'base64' ||
-            /^[A-Za-z0-9+/=\s]+$/.test(content) && content.length > 200 &&
-            !content.includes('BEGIN:VCALENDAR')) {
-          try { content = Buffer.from(content, 'base64').toString('utf8'); } catch (e) {}
-        }
-        candidates.push(content);
+  function walk(node, depth) {
+    if (node == null || depth > 8) return;
+
+    if (typeof node === 'string') {
+      if (node.includes('BEGIN:VCALENDAR')) { found.push(node); return; }
+      if (looksLikeBase64(node)) {
+        const decoded = tryDecode(node);
+        if (decoded) found.push(decoded);
       }
-    });
+      return;
+    }
+
+    if (Array.isArray(node)) {
+      node.forEach(item => walk(item, depth + 1));
+      return;
+    }
+
+    if (typeof node === 'object') {
+      if (seen.has(node)) return;
+      seen.add(node);
+      Object.keys(node).forEach(k => walk(node[k], depth + 1));
+    }
   }
 
-  // Some setups deliver the calendar as the plain or html body.
-  ['plain', 'html', 'text', 'body'].forEach(k => {
-    if (typeof payload[k] === 'string') candidates.push(payload[k]);
-  });
+  walk(payload, 0);
+  return found.length ? found[0] : null;
+}
 
-  // Raw MIME fallback.
-  if (typeof payload.raw === 'string') candidates.push(payload.raw);
-
-  for (const c of candidates) {
-    if (c && c.includes('BEGIN:VCALENDAR')) return c;
+// Describes what arrived, for troubleshooting when no calendar is found.
+function describePayload(payload) {
+  const info = { keys: Object.keys(payload || {}) };
+  if (Array.isArray(payload.attachments)) {
+    info.attachments = payload.attachments.map(a => ({
+      name: a.file_name || a.fileName || a.name || null,
+      type: a.content_type || a.contentType || null,
+      size: a.size || (a.content ? String(a.content).length : null)
+    }));
+  } else if (payload.attachments) {
+    info.attachments = 'present but not an array: ' + typeof payload.attachments;
+  } else {
+    info.attachments = 'none';
   }
-  return null;
+  if (payload.headers && typeof payload.headers === 'object') {
+    info.content_type = payload.headers['Content-Type'] ||
+                        payload.headers['content-type'] || null;
+  }
+  return info;
 }
 
 // ---------- handler ---------------------------------------------------
@@ -285,4 +321,3 @@ export default async (request) => {
 };
 
 export const config = { path: '/api/inbound-calendar' };
-
