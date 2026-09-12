@@ -329,7 +329,23 @@ export default async (request) => {
     const text = await res.text();
     if (!res.ok) {
       console.error('Supabase rejected the event:', res.status, text);
-      return new Response('Upstream error', { status: 502 });
+      // Surface the reason in the reply so it shows on the CloudMailin
+      // message details page, rather than only in the function logs.
+      return new Response(JSON.stringify({
+        error: 'database rejected the event',
+        status: res.status,
+        detail: text.slice(0, 400),
+        sent: {
+          uid: uid.slice(0, 60),
+          title: body.p_title,
+          category: body.p_category,
+          date: body.p_date,
+          start: body.p_start,
+          end: body.p_end,
+          method: effectiveMethod,
+          ics_bytes: icsText.length
+        }
+      }), { status: 502, headers: { 'Content-Type': 'application/json' } });
     }
     console.log('Ingested', uid, text);
     return new Response(text, {
