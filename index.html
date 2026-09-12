@@ -173,6 +173,10 @@
   }
   var db = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
 
+  // Who decides on journal access. Set in config.js. All the wording
+  // below avoids he/she, so any name reads correctly.
+  var APPROVER = (cfg.APPROVER || 'the coordinator');
+
   var CATS = [
     {key:'rides',   label:'Rides',    color:'var(--sage)'},
     {key:'izzy',    label:'Izzy',     color:'var(--clay)'},
@@ -304,7 +308,7 @@
     if (access && access.requested) {
       return '<button class="journey" data-action="journey-pending">'
         + '<strong>Tracey\u2019s journey</strong>'
-        + '<span>You have asked to read her updates. Wud will let you in shortly.</span></button>';
+        + '<span>You have asked to read her updates. ' + esc(APPROVER) + ' will let you in shortly.</span></button>';
     }
     return '<button class="journey" data-action="journey-ask">'
       + '<strong>Tracey\u2019s journey</strong>'
@@ -639,18 +643,18 @@
     if (a === 'journey-ask') {
       if (!window.confirm(
         'Tracey writes about how her recovery is going.\n\n' +
-        'Reading it needs Wud to approve you first. Send the request?')) return;
+        'Reading it needs ' + APPROVER + ' to approve you first. Send the request?')) return;
       var jr = await db.rpc('request_access', { p_email: me.email });
       if (jr.error) { notice = 'Could not send that just now. Please try again.'; render(); return; }
       access = { access: 'none', requested: true };
       if (jr.data && jr.data.new) notifyAccess(me.email, me.name);
-      window.alert('Asked. Wud will let you in shortly.');
+      window.alert('Asked. ' + APPROVER + ' will let you in shortly.');
       render();
       return;
     }
 
     if (a === 'journey-pending') {
-      window.alert('Your request is with Wud. You will be able to read her updates once he approves.');
+      window.alert('Your request is with ' + APPROVER + '. You will be able to read her updates once it is approved.');
       return;
     }
 
