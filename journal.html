@@ -78,6 +78,7 @@
     return;
   }
   var db = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+  var APPROVER = (cfg.APPROVER || 'the coordinator');
 
   function lsGet(k){ try { return JSON.parse(localStorage.getItem(k)); } catch(e){ return null; } }
   var me = lsGet('tracey_me');
@@ -169,7 +170,7 @@
     sub.textContent = '';
     content.className = '';
     content.innerHTML = '<div class="gate"><h2>Sign in on the main page first</h2>'
-      + '<p>Open the signup page and add your name and email. Once Wud has approved you, '
+      + '<p>Open the signup page and add your name and email. Once you are approved, '
       + 'her updates appear here.</p>'
       + '<a class="btn" href="/">Go to the signup page</a></div>';
   }
@@ -179,8 +180,8 @@
     content.className = '';
     content.innerHTML = '<div class="gate"><h2>Not yet</h2>'
       + '<p>' + (requested
-          ? 'Your request is with Wud. Once he approves you, Tracey\u2019s updates appear here.'
-          : 'Reading Tracey\u2019s updates needs Wud to approve you first. You can ask from the signup page.')
+          ? 'Your request is with ' + esc(APPROVER) + '. Once it is approved, her updates appear here.'
+          : 'Reading Tracey\u2019s updates needs approval first. You can ask from the signup page.')
       + '</p><a class="btn" href="/">Back to the signup page</a></div>';
   }
 
