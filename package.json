@@ -1,0 +1,10 @@
+{
+  "name": "tracey-signup",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Volunteer signup page for Tracey's recovery",
+  "dependencies": {
+    "nodemailer": "^6.9.14"
+  }
+}
