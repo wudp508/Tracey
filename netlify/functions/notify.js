@@ -1,3 +1,5 @@
+import nodemailer from 'nodemailer';
+
 // Sends an email to the coordinators when a friend claims or releases a
 // need. The page tells us which need changed; we look the details up
 // ourselves so nothing sensitive travels from the browser.
@@ -66,11 +68,21 @@ function addAttendee(ics, email, name) {
   return result;
 }
 
-// Sends the invitation to the volunteer as a calendar attachment.
+// Sends the invitation to the volunteer.
+//
+// The calendar has to arrive as an inline text/calendar part with
+// method=REQUEST, not as a file attachment. That is what makes Gmail
+// show its Yes / Maybe / No card instead of a paperclip. Brevo's HTTP
+// API cannot express that, so this goes over SMTP where we control the
+// message structure.
 async function sendInvite(env, need) {
   const ics = addAttendee(need.ics, need.email, need.volunteer);
   if (!ics) {
     return 'no stored invitation for this need';
+  }
+
+  if (!env.SMTP_LOGIN || !env.SMTP_KEY) {
+    return 'SMTP_LOGIN or SMTP_KEY not set';
   }
 
   const when = `${fmtDate(need.date)}, ${need.start_time}${need.end_time ? '–' + need.end_time : ''}`;
@@ -85,36 +97,62 @@ async function sendInvite(env, need) {
         ${need.location ? '<br>' + esc(need.location) : ''}
       </p>
       ${need.instructions ? `<p style="margin:0 0 14px">${esc(need.instructions)}</p>` : ''}
-      <p style="margin:0 0 14px">The invitation is attached — open it to add this
-      to your calendar. If the time or place changes you will get an update
-      automatically, so there is nothing to keep track of.</p>
+      <p style="margin:0 0 14px">This should appear on your calendar automatically.
+      If the time or place changes you will get an update, so there is nothing
+      to keep track of.</p>
       <p style="margin:0 0 14px">If something comes up and you cannot make it,
       free up the slot on the page and someone else can take it.</p>
       ${env.SITE_URL ? `<p style="margin:18px 0 0"><a href="${env.SITE_URL}" style="color:#3D5A5B">Open the signup page</a></p>` : ''}
     </div>`;
 
-  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'accept': 'application/json',
-      'api-key': env.BREVO_API_KEY
-    },
-    body: JSON.stringify({
-      sender: { email: env.NOTIFY_FROM, name: 'For Tracey' },
-      to: [{ email: need.email, name: need.volunteer || undefined }],
-      replyTo: { email: env.NOTIFY_FROM },
-      subject: `${need.title} — ${when}`,
-      htmlContent: html,
-      attachment: [{
-        name: 'invite.ics',
-        content: Buffer.from(ics, 'utf8').toString('base64')
-      }]
-    })
-  });
+  const text = [
+    'Thank you for signing up',
+    '',
+    need.title,
+    when,
+    need.location || '',
+    '',
+    need.instructions || '',
+    '',
+    'This should appear on your calendar automatically.',
+    env.SITE_URL || ''
+  ].filter(Boolean).join('\n');
 
-  const out = await res.text();
-  return res.ok ? 'invite sent' : ('invite failed ' + res.status + ': ' + out.slice(0, 200));
+  try {
+    const transport = nodemailer.createTransport({
+      host: 'smtp-relay.brevo.com',
+      port: 587,
+      secure: false,
+      auth: { user: env.SMTP_LOGIN, pass: env.SMTP_KEY }
+    });
+
+    await transport.sendMail({
+      from: { name: 'For Tracey', address: env.NOTIFY_FROM },
+      to: need.volunteer ? `"${need.volunteer}" <${need.email}>` : need.email,
+      replyTo: env.NOTIFY_FROM,
+      subject: `${need.title} — ${when}`,
+      text: text,
+      html: html,
+      // Inline calendar part. alternatives places it beside the html body
+      // inside multipart/alternative, which is what mail clients look for.
+      alternatives: [{
+        contentType: 'text/calendar; charset=UTF-8; method=REQUEST',
+        content: Buffer.from(ics, 'utf8')
+      }],
+      // A copy as a file too, for clients that ignore the inline part.
+      attachments: [{
+        filename: 'invite.ics',
+        content: Buffer.from(ics, 'utf8'),
+        contentType: 'application/ics'
+      }],
+      // Helps Outlook and Apple Mail treat it as a meeting request.
+      headers: { 'Content-Class': 'urn:content-classes:calendarmessage' }
+    });
+
+    return 'invite sent (inline calendar)';
+  } catch (e) {
+    return 'invite failed: ' + String(e && e.message ? e.message : e).slice(0, 250);
+  }
 }
 
 export default async (request) => {
@@ -128,7 +166,9 @@ export default async (request) => {
       BREVO_API_KEY: !!process.env.BREVO_API_KEY,
       NOTIFY_FROM:   process.env.NOTIFY_FROM || null,
       NOTIFY_TO:     process.env.NOTIFY_TO || null,
-      SITE_URL:      process.env.SITE_URL || null
+      SITE_URL:      process.env.SITE_URL || null,
+      SMTP_LOGIN:    process.env.SMTP_LOGIN || null,
+      SMTP_KEY:      !!process.env.SMTP_KEY
     };
 
     // Also check we can reach the database function this relies on.
@@ -332,8 +372,11 @@ export default async (request) => {
         if (full.ok) {
           const detail = await full.json();
           if (detail && detail.email) {
-            inviteResult = await sendInvite(
-              { BREVO_API_KEY, NOTIFY_FROM, SITE_URL }, detail);
+            inviteResult = await sendInvite({
+              NOTIFY_FROM, SITE_URL,
+              SMTP_LOGIN: process.env.SMTP_LOGIN,
+              SMTP_KEY:   process.env.SMTP_KEY
+            }, detail);
           } else {
             inviteResult = 'no volunteer email on record';
           }
