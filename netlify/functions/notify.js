@@ -252,6 +252,54 @@ export default async (request) => {
 
   const id = body && body.id;
   const action = body && body.action;
+
+  // Someone has asked to read Tracey's journal. No need lookup involved.
+  if (action === 'access-request') {
+    const who = (body.name || '').trim();
+    const addr = (body.email || '').trim();
+    if (!addr) return new Response('Bad request', { status: 400 });
+
+    const site = SITE_URL || '';
+    const html = `
+      <div style="font-family:-apple-system,Segoe UI,sans-serif;font-size:15px;
+                  line-height:1.55;color:#2B2321;max-width:480px">
+        <p style="font-size:17px;font-weight:600;margin:0 0 14px">Someone asked to read Tracey's updates</p>
+        <p style="margin:0 0 14px"><strong>${esc(who || addr)}</strong><br>${esc(addr)}</p>
+        <p style="margin:0 0 14px">They cannot see anything she has written until you approve them.
+        Open the coordinator view to decide.</p>
+        ${site ? `<p style="margin:18px 0 0"><a href="${site}" style="color:#3D5A5B">Open the signup page</a></p>` : ''}
+      </div>`;
+
+    try {
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'accept': 'application/json',
+          'api-key': BREVO_API_KEY
+        },
+        body: JSON.stringify({
+          sender: { email: NOTIFY_FROM, name: 'For Tracey' },
+          to: NOTIFY_TO.split(',').map(e => e.trim()).filter(Boolean).map(e => ({ email: e })),
+          subject: `${who || addr} asked to read Tracey's updates`,
+          htmlContent: html,
+          textContent: `${who || addr} (${addr}) asked to read Tracey's updates. `
+                     + `They cannot see anything until you approve them.`
+        })
+      });
+      if (!res.ok) {
+        console.error('Access-request email failed:', res.status, await res.text());
+        return new Response('Send failed', { status: 502 });
+      }
+      return new Response(JSON.stringify({ sent: true }), {
+        status: 200, headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (e) {
+      console.error('Brevo unreachable', e);
+      return new Response('Send failed', { status: 502 });
+    }
+  }
+
   if (!id || (action !== 'claimed' && action !== 'released')) {
     return new Response('Bad request', { status: 400 });
   }
