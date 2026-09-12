@@ -110,11 +110,11 @@
   var db = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
 
   var CATS = [
-    {key:'rehab',label:'Rehab rides',color:'var(--sage)'},{key:'medical',label:'Medical rides',color:'var(--teal)'},
-    {key:'walk',label:'Walks',color:'var(--ochre)'},{key:'social',label:'Social visits',color:'var(--rose)'},
-    {key:'outing',label:'Lunch & outings',color:'var(--gold)'},{key:'dog',label:'Izzy / dog help',color:'var(--clay)'},
-    {key:'errands',label:'Errands',color:'var(--slate)'},{key:'household',label:'Household help',color:'var(--plum)'},
-    {key:'other',label:'Other',color:'var(--grey)'}
+    {key:'rides',   label:'Rides',    color:'var(--sage)'},
+    {key:'izzy',    label:'Izzy',     color:'var(--clay)'},
+    {key:'walks',   label:'Walks',    color:'var(--ochre)'},
+    {key:'errands', label:'Errands',  color:'var(--slate)'},
+    {key:'other',   label:'Other',    color:'var(--grey)'}
   ];
   var catBy = {}; CATS.forEach(function(c){ catBy[c.key] = c; });
 
