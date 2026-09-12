@@ -63,6 +63,36 @@ export default async (request) => {
     }
     report.database = dbCheck;
 
+    // Adding ?send=1 actually sends a test email, so the whole path can
+    // be checked from a browser without claiming anything.
+    const url = new URL(request.url);
+    if (url.searchParams.get('send') === '1') {
+      try {
+        const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'accept': 'application/json',
+            'api-key': process.env.BREVO_API_KEY
+          },
+          body: JSON.stringify({
+            sender: { email: process.env.NOTIFY_FROM, name: 'For Tracey' },
+            to: (process.env.NOTIFY_TO || '').split(',')
+                  .map(e => e.trim()).filter(Boolean).map(e => ({ email: e })),
+            subject: 'Test from the Tracey signup page',
+            htmlContent: '<p>If you are reading this, notifications are working.</p>',
+            textContent: 'If you are reading this, notifications are working.'
+          })
+        });
+        const out = await res.text();
+        report.testSend = res.ok
+          ? 'sent ok: ' + out.slice(0, 120)
+          : 'FAILED ' + res.status + ': ' + out.slice(0, 400);
+      } catch (e) {
+        report.testSend = 'threw: ' + String(e).slice(0, 300);
+      }
+    }
+
     return new Response(JSON.stringify(report, null, 2), {
       status: 200, headers: { 'Content-Type': 'application/json' }
     });
