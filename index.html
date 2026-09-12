@@ -98,6 +98,28 @@
   .field-half{flex:1;min-width:0}
   .field-err{color:var(--rose);font-size:.74rem;margin:-5px 0 8px;line-height:1.35}
   input.bad{border-color:var(--rose)}
+  .assign{border:1px solid var(--border);background:var(--card-bg);border-radius:10px;
+    padding:13px;margin-bottom:11px}
+  .assign h4{margin:0 0 2px;font-size:.94rem;font-weight:600}
+  .assign .ameta{color:var(--text-muted);font-size:.81rem;margin:0 0 9px;line-height:1.45}
+  .assign input{font-size:.87rem;padding:8px 10px;margin-bottom:7px}
+  .arow{display:flex;gap:8px}
+  .arow input{flex:1;min-width:0}
+  .journey{display:block;width:100%;text-align:left;background:var(--card-bg);
+    border:1px solid var(--border);border-radius:10px;padding:13px 15px;
+    margin:0 0 20px;cursor:pointer;font-family:inherit}
+  .journey strong{display:block;font-size:.95rem;font-weight:600;color:var(--text);margin-bottom:3px}
+  .journey span{font-size:.83rem;color:var(--text-muted);line-height:1.45}
+  .tierrow{display:flex;justify-content:space-between;align-items:center;gap:10px;
+    padding:11px 0;border-top:1px solid var(--border)}
+  .tierrow .who{min-width:0}
+  .tierrow .who strong{font-weight:600;font-size:.88rem}
+  .tierrow .em{color:var(--text-muted);font-size:.79rem}
+  .tierbtns{display:flex;gap:6px;flex:0 0 auto}
+  .tierbtns button{font-size:.75rem;font-weight:600;padding:6px 10px;border-radius:6px;
+    border:1px solid var(--border);background:var(--card-bg);color:var(--text-muted);
+    cursor:pointer;font-family:inherit}
+  .tierbtns button.on{background:var(--text);border-color:var(--text);color:#fff}
   .err{color:var(--rose);font-size:.79rem;margin:-2px 0 9px;line-height:1.4}
   .invite{border:1px solid var(--border);background:var(--card-bg);border-radius:10px;padding:14px;margin-bottom:12px}
   .invite h4{margin:0 0 2px;font-size:.95rem;font-weight:600}
@@ -150,6 +172,7 @@
   var catBy = {}; CATS.forEach(function(c){ catBy[c.key] = c; });
 
   var needs = [], coordData = null, me = null, cat = 'all';
+  var access = null;   // {access:'none'|'approved'|'close', requested:bool}
   var coord = false, pass = '', copiedKey = null, notice = '', busy = null, poll = null;
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
@@ -163,6 +186,14 @@
   me = lsGet('tracey_me');
 
   async function loadNeeds(){
+    // Whether this person can read Tracey's journal, and whether they
+    // have already asked. Failure here must never block the needs list.
+    if (me) {
+      try {
+        var ar = await db.rpc('my_access', { p_email: me.email });
+        if (!ar.error && ar.data) access = ar.data;
+      } catch (e) {}
+    }
     var r = await db.rpc('list_needs', { p_email: me ? me.email : null });
     if (r.error) { notice = 'Could not reach the schedule. Check your connection and reload.'; }
     else { needs = r.data || []; notice = ''; }
@@ -184,6 +215,18 @@
   // Tells the coordinators that something changed. Deliberately not
   // awaited: a slow or failing email must never hold up the page or
   // stop someone signing up.
+  // Lets the coordinator know someone has asked to read the journal.
+  // Fire and forget, like the other notifications.
+  function notifyAccess(email, name) {
+    try {
+      fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'access-request', email: email, name: name })
+      }).catch(function(){});
+    } catch (e) {}
+  }
+
   function notify(id, action) {
     try {
       fetch('/api/notify', {
@@ -228,6 +271,25 @@
       + '<p class="hint">Only Tracey and the coordinators see your contact details. Other friends just see your first name next to what you have signed up for.</p>'
       + '<div class="err" id="r-err" style="display:none"></div>'
       + '<button class="btn primary" data-action="register">Continue</button></div>';
+  }
+
+  // The journal entry point. Always visible, so nobody has to be told
+  // it exists. What it does depends on where they stand.
+  function journeyButton() {
+    var state = access ? access.access : 'none';
+    if (state === 'approved' || state === 'close') {
+      return '<button class="journey" data-action="journal">'
+        + '<strong>Tracey\u2019s journey</strong>'
+        + '<span>Her own words on how things are going.</span></button>';
+    }
+    if (access && access.requested) {
+      return '<button class="journey" data-action="journey-pending">'
+        + '<strong>Tracey\u2019s journey</strong>'
+        + '<span>You have asked to read her updates. Wud will let you in shortly.</span></button>';
+    }
+    return '<button class="journey" data-action="journey-ask">'
+      + '<strong>Tracey\u2019s journey</strong>'
+      + '<span>She writes about how things are going. Tap to ask for access.</span></button>';
   }
 
   function row(n){
@@ -282,16 +344,91 @@
       sub.textContent = 'Claims waiting on an Outlook invite, and everyone who has registered.';
       var all = coordData.needs || [], vols = coordData.volunteers || [];
       var pend = all.filter(function(n){ return n.status==='FILLED' && !n.invited; });
+      var openOnes = all.filter(function(n){ return n.status === 'OPEN'; });
+      var claimed  = all.filter(function(n){ return n.status === 'FILLED'; });
+
+      // Everyone registered, offered as suggestions so assigning a
+      // returning friend is a tap rather than retyping their address.
+      var roster = '<datalist id="roster">' + vols.map(function(v){
+        return '<option value="' + esc(v.email) + '">' + esc(v.name) + '</option>';
+      }).join('') + '</datalist>';
+
+      function assignCard(n) {
+        return '<div class="assign">'
+          + '<h4>' + esc(n.title) + '</h4>'
+          + '<p class="ameta">' + fmtL(n.date) + ', ' + esc(n.start_time) + '</p>'
+          + '<div class="arow">'
+          +   '<input type="text" id="an-' + n.id + '" placeholder="Name" autocapitalize="words" />'
+          +   '<input type="email" id="ae-' + n.id + '" placeholder="Email" list="roster" autocapitalize="none" inputmode="email" />'
+          + '</div>'
+          + '<div class="field-err" id="aerr-' + n.id + '"></div>'
+          + '<button class="btn primary small" data-action="assign" data-id="' + n.id + '">Sign them up</button>'
+          + '</div>';
+      }
+
+      function claimedCard(n) {
+        return '<div class="assign">'
+          + '<h4>' + esc(n.title) + '</h4>'
+          + '<p class="ameta">' + fmtL(n.date) + ', ' + esc(n.start_time) + '<br>'
+          +   '<strong>' + esc(n.volunteer_name || '') + '</strong>'
+          +   (n.volunteer_email ? ' \u00b7 ' + esc(n.volunteer_email) : '')
+          +   (n.invited ? ' \u00b7 invite sent' : ' \u00b7 invite not sent yet') + '</p>'
+          + '<button class="btn ghost" data-action="unassign" data-id="' + n.id + '">They cancelled \u2014 free this up</button>'
+          + '</div>';
+      }
+
+      var pending = coordData.pending || [];
+
+      function pendingRow(p) {
+        return '<div class="tierrow">'
+          + '<div class="who"><strong>' + esc(p.name) + '</strong>'
+          +   '<div class="em">' + esc(p.email) + '</div></div>'
+          + '<div class="tierbtns">'
+          +   '<button data-action="settier" data-email="' + esc(p.email) + '" data-level="approved">Approve</button>'
+          +   '<button data-action="settier" data-email="' + esc(p.email) + '" data-level="none">Not now</button>'
+          + '</div></div>';
+      }
+
+      // Three tiers. Close is dormant for now \u2014 it shows the same
+      // journal plus anything Tracey keeps to a smaller circle. Nobody
+      // on a lower tier sees any sign that those posts exist.
+      function tierRow(p) {
+        var lvl = p.access || 'none';
+        function b(level, label) {
+          return '<button data-action="settier" data-email="' + esc(p.email) + '"'
+            + ' data-level="' + level + '"'
+            + (lvl === level ? ' class="on"' : '') + '>' + label + '</button>';
+        }
+        return '<div class="tierrow">'
+          + '<div class="who"><strong>' + esc(p.name) + '</strong>'
+          +   '<div class="em">' + esc(p.email)
+          +   (p.phone ? ' \u00b7 ' + esc(p.phone) : '') + '</div></div>'
+          + '<div class="tierbtns">'
+          +   b('none', 'No') + b('approved', 'Updates') + b('close', 'Close')
+          + '</div></div>';
+      }
+
       content.innerHTML = banner
         + '<div class="section-title">Needs an invite</div>'
         + '<div class="section-sub">' + (pend.length ? 'Add these attendees to the event on the Tracey Recovery calendar, then send the update.' : '') + '</div>'
         + (pend.length ? pend.map(inviteCard).join('') : '<div class="empty">All caught up. Every claimed need has an invite out.</div>')
+        + '<div class="section-title">Sign someone up</div>'
+        + '<div class="section-sub">' + (openOnes.length ? 'For friends who phone rather than use the page. They get the same calendar invitation.' : '') + '</div>'
+        + roster
+        + (openOnes.length ? openOnes.map(assignCard).join('') : '<div class="empty">Nothing open right now.</div>')
+        + '<div class="section-title">Covered</div>'
+        + '<div class="section-sub">' + (claimed.length ? 'Free one up here if someone cancels by phone.' : '') + '</div>'
+        + (claimed.length ? claimed.map(claimedCard).join('') : '<div class="empty">Nothing claimed yet.</div>')
+        + '<div class="section-title">Waiting to read her updates</div>'
+        + '<div class="section-sub">' + (pending.length
+            ? 'They have asked to read Tracey\u2019s journey. Nobody sees the journal until you approve.'
+            : '') + '</div>'
+        + (pending.length ? pending.map(pendingRow).join('')
+            : '<div class="empty">No one waiting.</div>')
         + '<div class="section-title">Registered friends</div>'
-        + '<div class="section-sub">'+vols.length+' '+(vols.length===1?'person has':'people have')+' added themselves.</div>'
-        + (vols.length ? vols.map(function(p){
-            return '<div class="person"><div><strong>'+esc(p.name)+'</strong>'
-              + (p.phone ? '<div class="em">'+esc(p.phone)+'</div>' : '') + '</div>'
-              + '<div class="em">'+esc(p.email)+'</div></div>'; }).join('')
+        + '<div class="section-sub">'+vols.length+' '+(vols.length===1?'person has':'people have')+' added themselves. '
+        + 'Approved friends can read her updates; nobody is told which level they are on.</div>'
+        + (vols.length ? vols.map(tierRow).join('')
           : '<div class="empty">Nobody registered yet.</div>');
       return;
     }
@@ -330,6 +467,7 @@
     content.innerHTML = banner + welcome
       + '<div class="me"><span>Signed in as <strong>'+esc(me.name)+'</strong> · '+esc(me.email)+'</span>'
       + '<button class="btn link" data-action="editme">Change</button></div>'
+      + journeyButton()
       + '<div class="chips">'+chips+'</div>'
       + '<div class="section-title">Open needs</div>'
       + '<div class="section-sub">'+(open.length ? 'One tap signs you up — the invitation goes to your email.' : '')+'</div>'
@@ -423,7 +561,21 @@
       var r = await db.rpc('claim_need', { p_id: id, p_email: me.email, p_name: me.name });
       busy = null;
       if (r.error) { notice = 'Could not sign you up just now. Please try again.'; }
-      else if (r.data === true) { notice = ''; notify(id, 'claimed'); }
+      else if (r.data === true) {
+        notice = '';
+        notify(id, 'claimed');
+        // Signing up for the first time also asks to read her updates,
+        // so nobody has to think of requesting it.
+        if (access && access.access === 'none' && !access.requested) {
+          try {
+            var jr2 = await db.rpc('request_access', { p_email: me.email });
+            if (!jr2.error) {
+              access = { access: 'none', requested: true };
+              if (jr2.data && jr2.data.new) notifyAccess(me.email, me.name);
+            }
+          } catch (e) {}
+        }
+      }
       else { notice = 'Someone else just took that one. Here is the updated list.'; }
       await loadNeeds(); return;
     }
@@ -434,6 +586,89 @@
       if (rr.error || rr.data !== true) { notice = 'Could not release that. Please refresh and try again.'; }
       else { notice = ''; notify(id, 'released'); }
       await loadNeeds(); return;
+    }
+
+    if (a === 'journey-ask') {
+      if (!window.confirm(
+        'Tracey writes about how her recovery is going.\n\n' +
+        'Reading it needs Wud to approve you first. Send the request?')) return;
+      var jr = await db.rpc('request_access', { p_email: me.email });
+      if (jr.error) { notice = 'Could not send that just now. Please try again.'; render(); return; }
+      access = { access: 'none', requested: true };
+      if (jr.data && jr.data.new) notifyAccess(me.email, me.name);
+      window.alert('Asked. Wud will let you in shortly.');
+      render();
+      return;
+    }
+
+    if (a === 'journey-pending') {
+      window.alert('Your request is with Wud. You will be able to read her updates once he approves.');
+      return;
+    }
+
+    if (a === 'journal') {
+      window.location.href = '/journal';
+      return;
+    }
+
+    if (a === 'settier') {
+      var em = el.getAttribute('data-email');
+      var lvl = el.getAttribute('data-level');
+      el.disabled = true;
+      var sr = await db.rpc('set_access', { p_pass: pass, p_email: em, p_level: lvl });
+      el.disabled = false;
+      if (sr.error || !sr.data || sr.data.ok !== true) {
+        notice = 'Could not change that. Please try again.'; render(); return;
+      }
+      await loadCoord();
+      return;
+    }
+
+    if (a === 'assign') {
+      var nEl = document.getElementById('an-' + id);
+      var eEl2 = document.getElementById('ae-' + id);
+      var slot = document.getElementById('aerr-' + id);
+      var nm = (nEl.value || '').trim();
+      var em = (eEl2.value || '').trim().toLowerCase();
+
+      slot.textContent = '';
+      if (nm.length < 2) { slot.textContent = 'Their name, so Tracey knows who is coming.'; return; }
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) {
+        slot.textContent = 'An email address that can receive the calendar invitation.'; return;
+      }
+
+      el.disabled = true;
+      el.textContent = 'Signing up\u2026';
+      var ar = await db.rpc('assign_need', {
+        p_pass: pass, p_id: id, p_name: nm, p_email: em, p_phone: ''
+      });
+      el.disabled = false;
+      el.textContent = 'Sign them up';
+
+      if (ar.error) { slot.textContent = 'Could not do that just now. Try again.'; return; }
+      if (!ar.data || ar.data.ok !== true) {
+        slot.textContent = (ar.data && ar.data.reason) ? ar.data.reason : 'Could not sign them up.';
+        return;
+      }
+      // Same notification and invitation path a friend's own claim takes.
+      notify(id, 'claimed');
+      await loadCoord();
+      return;
+    }
+
+    if (a === 'unassign') {
+      if (!window.confirm('Free this up so someone else can take it?')) return;
+      var ur = await db.rpc('unassign_need', { p_pass: pass, p_id: id });
+      if (ur.error || !ur.data || ur.data.ok !== true) {
+        notice = 'Could not free that up. Refresh and try again.';
+        render(); return;
+      }
+      notify(id, 'released');
+      if (ur.data.was_invited) {
+        window.alert('Freed up. They were already on the Outlook invite \u2014 remember to remove them from the event.');
+      }
+      await loadCoord();
+      return;
     }
 
     if (a === 'invited') {
