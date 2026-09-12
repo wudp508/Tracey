@@ -109,14 +109,37 @@ function extractCategory(title, description) {
   for (const cat of CATEGORIES) {
     if (hay.includes('#' + cat)) return cat;
   }
-  // Fall back to a few plain-language hints in the title.
-  const t = (title || '').toLowerCase();
-  if (/\brehab\b/.test(t)) return 'rehab';
-  if (/\b(doctor|clinic|appointment|medical)\b/.test(t)) return 'medical';
-  if (/\bwalk\b/.test(t)) return 'walk';
-  if (/\b(grocer|errand|pharmacy|shopping)\b/.test(t)) return 'errands';
-  if (/\b(visit|coffee|lunch|dinner)\b/.test(t)) return 'social';
-  if (/\b(izzy|dog)\b/.test(t)) return 'dog';
+  // Fall back to plain-language hints in the title and description.
+  // Order matters: the more specific patterns are tested first, so
+  // "walk Izzy" lands in dog help rather than walks.
+  const t = `${title || ''} ${description || ''}`.toLowerCase();
+
+  // Izzy by name, or any dog wording, beats everything else.
+  if (/\b(izzy|dog|puppy|leash|kennel|vet)\b/.test(t)) return 'dog';
+
+  if (/\brehab\b|\bphysical therapy\b|\bpt\b|\bot\b/.test(t)) return 'rehab';
+
+  if (/\b(doctor|dr\.|clinic|hospital|medical|surgeon|specialist|infusion|lab|x-ray|imaging|dentist)\b/.test(t))
+    return 'medical';
+
+  // Meals and going out, checked before social so "coffee" is not a visit.
+  if (/\b(lunch|dinner|breakfast|brunch|coffee|tea|cafe|caf\u00e9|restaurant|outing|movie|concert|museum)\b/.test(t))
+    return 'outing';
+
+  if (/\bgrocer|\berrand|\bpharmac|\bprescription\b|\bshop|\bstore\b|\bcostco\b|\btarget\b|\bbank\b|\bpost office\b|\bpick up .*(food|supplies)/.test(t))
+    return 'errands';
+
+  if (/\b(laundry|dishes|clean|tidy|vacuum|trash|garbage|yard|lawn|mail|household|chores?|repair|fix)\b/.test(t))
+    return 'household';
+
+  if (/\bwalk\b|\bstroll\b|\bexercise\b|\bstretch\b/.test(t)) return 'walk';
+
+  if (/\b(visit|company|sit with|chat|catch up|hang out|keep .* company|social)\b/.test(t))
+    return 'social';
+
+  // Any remaining ride is a medical one more often than not.
+  if (/\b(ride|drive|driving|transport|pick ?up|appointment)\b/.test(t)) return 'medical';
+
   return 'other';
 }
 
@@ -304,7 +327,9 @@ export default async (request) => {
     p_start: start ? start.time : '',
     p_end: end ? end.time : (start ? start.time : ''),
     p_location: location,
-    p_instructions: stripTags(description)
+    p_instructions: stripTags(description),
+    // Kept so a claimed need can forward the genuine invitation.
+    p_ics: icsText
   };
 
   try {
