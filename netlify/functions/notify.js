@@ -24,6 +24,50 @@ function esc(s) {
 }
 
 export default async (request) => {
+  // A GET shows what is configured, so problems can be diagnosed from a
+  // browser. Reports only whether each value is present, never the value.
+  if (request.method === 'GET') {
+    const report = {
+      SUPABASE_URL:  !!process.env.SUPABASE_URL,
+      SUPABASE_KEY:  !!process.env.SUPABASE_KEY,
+      INGEST_TOKEN:  !!process.env.INGEST_TOKEN,
+      BREVO_API_KEY: !!process.env.BREVO_API_KEY,
+      NOTIFY_FROM:   process.env.NOTIFY_FROM || null,
+      NOTIFY_TO:     process.env.NOTIFY_TO || null,
+      SITE_URL:      process.env.SITE_URL || null
+    };
+
+    // Also check we can reach the database function this relies on.
+    let dbCheck = 'not attempted';
+    if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY && process.env.INGEST_TOKEN) {
+      try {
+        const r = await fetch(`${process.env.SUPABASE_URL}/rest/v1/rpc/need_summary`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.SUPABASE_KEY,
+            'Authorization': `Bearer ${process.env.SUPABASE_KEY}`
+          },
+          body: JSON.stringify({
+            p_token: process.env.INGEST_TOKEN,
+            p_id: '00000000-0000-0000-0000-000000000000'
+          })
+        });
+        const txt = await r.text();
+        dbCheck = r.ok
+          ? 'reachable (returned ' + txt.slice(0, 40) + ')'
+          : 'error ' + r.status + ': ' + txt.slice(0, 200);
+      } catch (e) {
+        dbCheck = 'unreachable: ' + String(e).slice(0, 200);
+      }
+    }
+    report.database = dbCheck;
+
+    return new Response(JSON.stringify(report, null, 2), {
+      status: 200, headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
   if (request.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 });
   }
@@ -142,7 +186,9 @@ export default async (request) => {
     const out = await res.text();
     if (!res.ok) {
       console.error('Brevo rejected the send:', res.status, out);
-      return new Response('Send failed', { status: 502 });
+      return new Response(JSON.stringify({ error: 'brevo rejected', status: res.status, detail: out.slice(0, 300) }), {
+        status: 502, headers: { 'Content-Type': 'application/json' }
+      });
     }
     console.log('Notified', action, need.title);
     return new Response(JSON.stringify({ sent: true }), {
