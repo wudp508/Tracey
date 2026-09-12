@@ -4,6 +4,25 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>For Tracey</title>
+<meta name="description" content="Pick anything you can take. Everyone sees the same list, so nothing gets doubled up." />
+
+<!-- Link preview. iMessage, WhatsApp, Slack and Facebook read these; the
+     absolute URL matters, relative paths are ignored by most of them. -->
+<meta property="og:type" content="website" />
+<meta property="og:title" content="For Tracey" />
+<meta property="og:description" content="Rides, walks, Izzy, errands — take whatever fits your week. Everyone sees the same list, so nothing gets doubled up." />
+<meta property="og:url" content="https://tracey-humphreys-help-her-recover.netlify.app/" />
+<meta property="og:image" content="https://tracey-humphreys-help-her-recover.netlify.app/preview.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:site_name" content="For Tracey" />
+
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="For Tracey" />
+<meta name="twitter:description" content="Rides, walks, Izzy, errands — take whatever fits your week." />
+<meta name="twitter:image" content="https://tracey-humphreys-help-her-recover.netlify.app/preview.png" />
+
+<meta name="theme-color" content="#F7F5F0" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -67,6 +86,13 @@
   input{width:100%;font-family:inherit;font-size:.92rem;padding:10px;border:1px solid var(--border);
     border-radius:6px;margin-bottom:9px;background:var(--bg);color:var(--text)}
   .hint{color:var(--text-muted);font-size:.76rem;margin:-4px 0 10px;line-height:1.4}
+  label{display:block;font-size:.78rem;font-weight:600;color:var(--text);margin:2px 0 5px}
+  .req{font-weight:500;color:var(--rose);font-size:.72rem;margin-left:4px}
+  .opt{font-weight:500;color:var(--text-muted);font-size:.72rem;margin-left:4px}
+  .field-row{display:flex;gap:10px}
+  .field-half{flex:1;min-width:0}
+  .field-err{color:var(--rose);font-size:.74rem;margin:-5px 0 8px;line-height:1.35}
+  input.bad{border-color:var(--rose)}
   .err{color:var(--rose);font-size:.79rem;margin:-2px 0 9px;line-height:1.4}
   .invite{border:1px solid var(--border);background:var(--card-bg);border-radius:10px;padding:14px;margin-bottom:12px}
   .invite h4{margin:0 0 2px;font-size:.95rem;font-weight:600}
@@ -175,9 +201,24 @@
     return '<div class="gate"><h2>Add yourself first</h2>'
       + '<p>We need your email so we can send you the calendar invitation when you sign up for something. '
       + 'That way you get reminders, and if a time changes your calendar updates on its own — no texts needed.</p>'
-      + '<input type="text" id="r-name" placeholder="Your name" autocomplete="name" />'
-      + '<input type="email" id="r-email" placeholder="Email for calendar invitations" autocomplete="email" />'
-      + '<input type="tel" id="r-phone" placeholder="Phone (optional)" autocomplete="tel" />'
+      + '<div class="field-row">'
+      +   '<div class="field-half">'
+      +     '<label for="r-first">First name <span class="req">required</span></label>'
+      +     '<input type="text" id="r-first" autocomplete="given-name" autocapitalize="words" />'
+      +     '<div class="field-err" id="e-first"></div>'
+      +   '</div>'
+      +   '<div class="field-half">'
+      +     '<label for="r-last">Last name <span class="req">required</span></label>'
+      +     '<input type="text" id="r-last" autocomplete="family-name" autocapitalize="words" />'
+      +     '<div class="field-err" id="e-last"></div>'
+      +   '</div>'
+      + '</div>'
+      + '<label for="r-email">Email <span class="req">required</span></label>'
+      + '<input type="email" id="r-email" autocomplete="email" inputmode="email" autocapitalize="none" placeholder="so we can send you the invitation" />'
+      + '<div class="field-err" id="e-email"></div>'
+      + '<label for="r-phone">Phone <span class="opt">optional</span></label>'
+      + '<input type="tel" id="r-phone" autocomplete="tel" inputmode="tel" />'
+      + '<p class="hint">Other friends only see your first name. The rest is so Tracey and the coordinators know exactly who is coming.</p>'
       + '<p class="hint">Been here before? Enter the same email and everything you have signed up for comes straight back.</p>'
       + '<p class="hint">Only Tracey and the coordinators see your contact details. Other friends just see your first name next to what you have signed up for.</p>'
       + '<div class="err" id="r-err" style="display:none"></div>'
@@ -190,7 +231,7 @@
     var mine = filled && n.is_mine === true;
     var act;
     if (filled) {
-      act = '<p class="vol">Covered by <strong>' + esc(mine ? 'you' : (n.volunteer_first || 'a friend')) + '</strong>'
+      act = '<p class="vol">Covered by <strong>' + esc(mine ? 'you' : (n.volunteer_name || 'a friend')) + '</strong>'
           + (mine ? '<span class="yours">yours</span>' : '') + '</p>'
           + (mine ? '<button class="btn ghost" data-action="release" data-id="'+n.id+'">Can\'t make it anymore? Free up this slot</button>' : '');
     } else {
@@ -257,7 +298,7 @@
         + '<div class="welcome">'
         + '<p>Tracey is working her way back, and a lot of you have asked how you can help. '
         + 'This page is the answer.</p>'
-        + '<p>Everything she needs is listed here \u2014 rides to rehab, walks, company, errands, '
+        + '<p>Everything she needs is listed here — rides to rehab, walks, company, errands, '
         + 'a hand with Izzy. Take whatever fits your week. You will see what is already covered, '
         + 'so nothing gets doubled up and nobody has to coordinate.</p>'
         + '<p>Thank you. It matters more than you know.</p></div>'
@@ -276,7 +317,7 @@
     var welcome = '<div class="welcome">'
       + '<p>Tracey is working her way back, and a lot of you have asked how you can help. '
       + 'This page is the answer.</p>'
-      + '<p>Everything she needs is listed below \u2014 rides to rehab, walks, company, errands, '
+      + '<p>Everything she needs is listed below — rides to rehab, walks, company, errands, '
       + 'a hand with Izzy. Take whatever fits your week. You will see what is already covered, '
       + 'so nothing gets doubled up and nobody has to coordinate.</p>'
       + '<p>Thank you. It matters more than you know.</p></div>';
@@ -318,13 +359,47 @@
     }
 
     if (a === 'register') {
-      var name  = (document.getElementById('r-name').value || '').trim();
-      var email = (document.getElementById('r-email').value || '').trim().toLowerCase();
-      var phone = (document.getElementById('r-phone').value || '').trim();
+      var fEl = document.getElementById('r-first');
+      var lEl = document.getElementById('r-last');
+      var eEl = document.getElementById('r-email');
       var err = document.getElementById('r-err');
-      if (!name) { err.textContent = 'Enter your name so Tracey knows who is coming.'; err.style.display='block'; return; }
+
+      var first = (fEl.value || '').trim();
+      var last  = (lEl.value || '').trim();
+      var email = (eEl.value || '').trim().toLowerCase();
+      var phone = (document.getElementById('r-phone').value || '').trim();
+
+      // Typing a whole name into the first box is a common slip. Move the
+      // surplus across rather than making anyone retype.
+      if (!last && first.indexOf(' ') > 0) {
+        var parts = first.split(/\s+/);
+        first = parts.shift();
+        last  = parts.join(' ');
+        fEl.value = first;
+        lEl.value = last;
+      }
+
+      function fail(el, slot, msg) {
+        document.getElementById(slot).textContent = msg;
+        el.classList.add('bad');
+      }
+      function clearField(el, slot) {
+        document.getElementById(slot).textContent = '';
+        el.classList.remove('bad');
+      }
+      clearField(fEl, 'e-first'); clearField(lEl, 'e-last'); clearField(eEl, 'e-email');
+      err.style.display = 'none';
+
+      var ok = true;
+      if (first.length < 2) { fail(fEl, 'e-first', 'Please give your first name.'); ok = false; }
+      if (last.length < 2)  { fail(lEl, 'e-last', 'Last name too, so Tracey knows which friend this is.'); ok = false; }
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-        err.textContent = 'Enter an email address that can receive calendar invitations.'; err.style.display='block'; return; }
+        fail(eEl, 'e-email', 'An email address that can receive calendar invitations.'); ok = false;
+      }
+      if (!ok) return;
+
+      // Stored as one string, shown in full to friends and coordinators.
+      var name = first + ' ' + last;
       var r = await db.rpc('register_volunteer', { p_email: email, p_name: name, p_phone: phone });
       if (r.error) { err.textContent = 'Could not save that just now. Check your connection and try again.'; err.style.display='block'; return; }
       me = { name: name, email: email, phone: phone };
