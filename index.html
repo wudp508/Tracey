@@ -20,6 +20,10 @@
   .topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
   h1{font-family:'Fraunces',serif;font-weight:600;font-size:1.9rem;margin:0 0 6px;letter-spacing:-.01em}
   .sub{margin:0 0 18px;color:var(--text-muted);font-size:.93rem;line-height:1.5;max-width:46ch}
+  .welcome{background:var(--card-bg);border:1px solid var(--border);border-radius:12px;
+    padding:16px 18px;margin:0 0 22px;max-width:52ch}
+  .welcome p{margin:0 0 11px;font-size:.93rem;line-height:1.6;color:var(--text)}
+  .welcome p:last-child{margin-bottom:0;color:var(--text-muted)}
   .modetoggle{flex:0 0 auto;font-size:.76rem;font-weight:600;border:1px solid var(--border);
     background:var(--card-bg);color:var(--text-muted);border-radius:100px;padding:6px 12px;
     cursor:pointer;font-family:inherit}
@@ -247,7 +251,19 @@
     }
 
     h1.textContent = 'For Tracey';
-    if (!me) { sub.textContent = ''; content.innerHTML = banner + gate(); return; }
+    if (!me) {
+      sub.textContent = '';
+      content.innerHTML = banner
+        + '<div class="welcome">'
+        + '<p>Tracey is working her way back, and a lot of you have asked how you can help. '
+        + 'This page is the answer.</p>'
+        + '<p>Everything she needs is listed here \u2014 rides to rehab, walks, company, errands, '
+        + 'a hand with Izzy. Take whatever fits your week. You will see what is already covered, '
+        + 'so nothing gets doubled up and nobody has to coordinate.</p>'
+        + '<p>Thank you. It matters more than you know.</p></div>'
+        + gate();
+      return;
+    }
     sub.textContent = 'Pick anything you can take. Everyone sees the same list, so nothing gets doubled up.';
 
     var list = cat === 'all' ? needs : needs.filter(function(n){ return n.category === cat; });
@@ -257,7 +273,15 @@
       return '<button class="chip '+(cat===c.key?'active':'')+'" data-action="filter" data-cat="'+c.key+'">'+c.label+'</button>';
     }).join('');
 
-    content.innerHTML = banner
+    var welcome = '<div class="welcome">'
+      + '<p>Tracey is working her way back, and a lot of you have asked how you can help. '
+      + 'This page is the answer.</p>'
+      + '<p>Everything she needs is listed below \u2014 rides to rehab, walks, company, errands, '
+      + 'a hand with Izzy. Take whatever fits your week. You will see what is already covered, '
+      + 'so nothing gets doubled up and nobody has to coordinate.</p>'
+      + '<p>Thank you. It matters more than you know.</p></div>';
+
+    content.innerHTML = banner + welcome
       + '<div class="me"><span>Signed in as <strong>'+esc(me.name)+'</strong> · '+esc(me.email)+'</span>'
       + '<button class="btn link" data-action="editme">Change</button></div>'
       + '<div class="chips">'+chips+'</div>'
@@ -344,4 +368,3 @@
 </script>
 </body>
 </html>
-
