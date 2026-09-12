@@ -120,6 +120,17 @@
     border:1px solid var(--border);background:var(--card-bg);color:var(--text-muted);
     cursor:pointer;font-family:inherit}
   .tierbtns button.on{background:var(--text);border-color:var(--text);color:#fff}
+  .postrow{border:1px solid var(--border);background:var(--card-bg);border-radius:10px;
+    padding:13px;margin-bottom:10px}
+  .postrow h4{margin:0 0 2px;font-size:.94rem;font-weight:600}
+  .postrow .pmeta{color:var(--text-muted);font-size:.79rem;margin:0 0 9px}
+  .postrow .excerpt{color:var(--text-muted);font-size:.84rem;line-height:1.5;margin:0 0 11px}
+  .postbtns{display:flex;gap:6px;flex-wrap:wrap}
+  .postbtns button{font-size:.75rem;font-weight:600;padding:6px 10px;border-radius:6px;
+    border:1px solid var(--border);background:var(--card-bg);color:var(--text-muted);
+    cursor:pointer;font-family:inherit}
+  .postbtns button.on{background:var(--text);border-color:var(--text);color:#fff}
+  .postbtns button.danger{color:var(--rose);border-color:var(--rose)}
   .err{color:var(--rose);font-size:.79rem;margin:-2px 0 9px;line-height:1.4}
   .invite{border:1px solid var(--border);background:var(--card-bg);border-radius:10px;padding:14px;margin-bottom:12px}
   .invite h4{margin:0 0 2px;font-size:.95rem;font-weight:600}
@@ -173,6 +184,7 @@
 
   var needs = [], coordData = null, me = null, cat = 'all';
   var access = null;   // {access:'none'|'approved'|'close', requested:bool}
+  var posts = null;    // Tracey's journal, coordinator view only
   var coord = false, pass = '', copiedKey = null, notice = '', busy = null, poll = null;
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
@@ -201,6 +213,13 @@
   }
 
   async function loadCoord(){
+    // Posts are a separate call so a journal problem cannot stop the
+    // rest of the coordinator view loading.
+    try {
+      var pr = await db.rpc('coordinator_posts', { p_pass: pass });
+      posts = pr.error ? [] : (pr.data || []);
+    } catch (e) { posts = []; }
+
     var r = await db.rpc('coordinator_data', { p_pass: pass });
     if (r.error) { coordData = null; notice = 'That passphrase was not accepted.'; pass=''; }
     else { coordData = r.data; notice = ''; }
@@ -408,6 +427,29 @@
           + '</div></div>';
       }
 
+      function postRow(p) {
+        var vis = p.visibility || 'approved';
+        var text = String(p.body || '').replace(/[#*>_`\-]/g, ' ')
+                     .replace(/\s+/g, ' ').trim();
+        var excerpt = text.length > 150 ? text.slice(0, 150) + '\u2026' : text;
+        function b(level, label) {
+          return '<button data-action="setvis" data-id="' + p.id + '"'
+            + ' data-vis="' + level + '"'
+            + (vis === level ? ' class="on"' : '') + '>' + label + '</button>';
+        }
+        return '<div class="postrow">'
+          + '<h4>' + esc(p.title) + '</h4>'
+          + '<p class="pmeta">' + fmtL(String(p.published).slice(0, 10))
+          +   (vis === 'hidden' ? ' \u00b7 hidden from everyone'
+              : vis === 'close' ? ' \u00b7 close circle only'
+              : ' \u00b7 everyone approved') + '</p>'
+          + (excerpt ? '<p class="excerpt">' + esc(excerpt) + '</p>' : '')
+          + '<div class="postbtns">'
+          +   b('approved', 'Everyone') + b('close', 'Close') + b('hidden', 'Hide')
+          +   '<button class="danger" data-action="delpost" data-id="' + p.id + '">Delete</button>'
+          + '</div></div>';
+      }
+
       content.innerHTML = banner
         + '<div class="section-title">Needs an invite</div>'
         + '<div class="section-sub">' + (pend.length ? 'Add these attendees to the event on the Tracey Recovery calendar, then send the update.' : '') + '</div>'
@@ -419,6 +461,12 @@
         + '<div class="section-title">Covered</div>'
         + '<div class="section-sub">' + (claimed.length ? 'Free one up here if someone cancels by phone.' : '') + '</div>'
         + (claimed.length ? claimed.map(claimedCard).join('') : '<div class="empty">Nothing claimed yet.</div>')
+        + '<div class="section-title">Tracey\u2019s posts</div>'
+        + '<div class="section-sub">' + ((posts && posts.length)
+            ? 'Hide one if she reposts a correction. Nobody is told a post exists that they cannot see.'
+            : 'She has not sent anything yet.') + '</div>'
+        + ((posts && posts.length) ? posts.map(postRow).join('')
+            : '<div class="empty">No posts yet.</div>')
         + '<div class="section-title">Waiting to read her updates</div>'
         + '<div class="section-sub">' + (pending.length
             ? 'They have asked to read Tracey\u2019s journey. Nobody sees the journal until you approve.'
@@ -608,6 +656,28 @@
 
     if (a === 'journal') {
       window.location.href = '/journal';
+      return;
+    }
+
+    if (a === 'setvis') {
+      var vis = el.getAttribute('data-vis');
+      el.disabled = true;
+      var vr = await db.rpc('set_post_visibility', { p_pass: pass, p_id: id, p_visibility: vis });
+      el.disabled = false;
+      if (vr.error || !vr.data || vr.data.ok !== true) {
+        notice = 'Could not change that. Please try again.'; render(); return;
+      }
+      await loadCoord();
+      return;
+    }
+
+    if (a === 'delpost') {
+      if (!window.confirm('Delete this post for good? Hiding it keeps it in case she changes her mind.')) return;
+      var dr = await db.rpc('delete_post', { p_pass: pass, p_id: id });
+      if (dr.error || !dr.data || dr.data.ok !== true) {
+        notice = 'Could not delete that. Please try again.'; render(); return;
+      }
+      await loadCoord();
       return;
     }
 
