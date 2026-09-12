@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tracey's journey</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<!-- Deliberately kept out of search results. The page is only reachable
+     with the link and only readable once approved, but there is no
+     reason for it to be indexed at all. -->
+<meta name="robots" content="noindex, nofollow" />
+<style>
+  :root{
+    --bg:#F7F5F0; --card-bg:#FFF; --text:#2B2321; --text-muted:#6E6558; --border:#E4DFD3;
+    --sage:#6B7F5E; --teal:#3D5A5B; --clay:#A85C32; --rose:#B5696A; --grey:#8A8578;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;
+       -webkit-font-smoothing:antialiased}
+  .app{max-width:640px;margin:0 auto;padding:26px 18px 64px}
+  .topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:6px}
+  h1{font-family:'Fraunces',serif;font-weight:600;font-size:1.85rem;margin:0 0 6px;letter-spacing:-.01em}
+  .sub{margin:0 0 26px;color:var(--text-muted);font-size:.93rem;line-height:1.5;max-width:46ch}
+  .back{flex:0 0 auto;font-size:.78rem;font-weight:600;border:1px solid var(--border);
+    background:var(--card-bg);color:var(--text-muted);border-radius:100px;padding:6px 13px;
+    cursor:pointer;font-family:inherit;text-decoration:none;display:inline-block}
+  .status{color:var(--text-muted);font-size:.9rem;padding:22px 0;line-height:1.55}
+  .gate{background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:20px}
+  .gate h2{font-family:'Fraunces',serif;font-size:1.15rem;font-weight:500;margin:0 0 8px}
+  .gate p{color:var(--text-muted);font-size:.9rem;line-height:1.55;margin:0 0 14px}
+  .btn{font-family:inherit;font-size:.84rem;font-weight:600;border:none;border-radius:7px;
+    padding:9px 15px;cursor:pointer;background:var(--text);color:#fff;text-decoration:none;
+    display:inline-block}
+  .post{border-top:1px solid var(--border);padding:26px 0 6px}
+  .post:first-of-type{border-top:none;padding-top:4px}
+  .post h2{font-family:'Fraunces',serif;font-weight:600;font-size:1.35rem;
+    margin:0 0 4px;letter-spacing:-.01em;line-height:1.3}
+  .when{color:var(--text-muted);font-size:.79rem;margin:0 0 14px}
+  .body{font-size:1rem;line-height:1.68}
+  .body p{margin:0 0 15px}
+  .body h1,.body h2,.body h3{font-family:'Fraunces',serif;font-weight:600;
+    line-height:1.3;margin:24px 0 9px}
+  .body h1{font-size:1.2rem} .body h2{font-size:1.1rem} .body h3{font-size:1rem}
+  .body ul,.body ol{margin:0 0 15px;padding-left:22px}
+  .body li{margin-bottom:6px}
+  .body blockquote{margin:0 0 15px;padding:2px 0 2px 15px;border-left:3px solid var(--border);
+    color:var(--text-muted);font-style:italic}
+  .body hr{border:none;border-top:1px solid var(--border);margin:24px 0}
+  .body code{background:var(--card-bg);border:1px solid var(--border);border-radius:4px;
+    padding:1px 5px;font-size:.9em}
+  .body a{color:var(--teal)}
+  .body strong{font-weight:600}
+</style>
+</head>
+<body>
+<div class="app" id="root">
+  <div class="topbar">
+    <div><h1>Tracey&rsquo;s journey</h1></div>
+    <a class="back" href="/">Back</a>
+  </div>
+  <p class="sub" id="sub"></p>
+  <div id="content" class="status">Loading&hellip;</div>
+</div>
+
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+(function () {
+  var cfg = window.TRACEY_CONFIG || {};
+  var content = document.getElementById('content');
+  var sub = document.getElementById('sub');
+
+  if (!cfg.SUPABASE_URL || cfg.SUPABASE_URL.indexOf('YOUR-PROJECT') !== -1) {
+    content.textContent = 'config.js still has placeholder values.';
+    return;
+  }
+  var db = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+
+  function lsGet(k){ try { return JSON.parse(localStorage.getItem(k)); } catch(e){ return null; } }
+  var me = lsGet('tracey_me');
+
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  function fmtWhen(iso){
+    try {
+      return new Date(iso).toLocaleDateString(undefined,
+        { weekday:'long', month:'long', day:'numeric' });
+    } catch(e){ return ''; }
+  }
+
+  // ---------- a small markdown renderer ----------
+  //
+  // Deliberately not a library. This covers what a document exported to
+  // markdown actually contains: headings, paragraphs, lists, quotes,
+  // emphasis, links, rules. Anything unusual renders as plain text
+  // rather than breaking, which is the right failure for someone's
+  // personal writing.
+  //
+  // Everything is escaped before any markup is added, so nothing in the
+  // text can inject HTML.
+  function inline(t) {
+    return esc(t)
+      .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, '')          // images: drop
+      .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function(_, label, href) {
+        return /^https?:\/\//i.test(href)
+          ? '<a href="' + href + '" rel="noopener">' + label + '</a>'
+          : label;
+      })
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/(^|\W)_([^_]+)_(?=\W|$)/g, '$1<em>$2</em>')
+      .replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, '$1<em>$2</em>');
+  }
+
+  function markdown(src) {
+    var lines = String(src || '').replace(/\r\n/g, '\n').split('\n');
+    var out = [], para = [], list = null;
+
+    function flushPara() {
+      if (para.length) { out.push('<p>' + inline(para.join(' ')) + '</p>'); para = []; }
+    }
+    function flushList() {
+      if (list) { out.push('<' + list.tag + '>' + list.items.join('') + '</' + list.tag + '>'); list = null; }
+    }
+    function flushAll() { flushPara(); flushList(); }
+
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      var t = line.trim();
+
+      if (!t) { flushAll(); continue; }
+
+      var h = t.match(/^(#{1,6})\s+(.*)$/);
+      if (h) {
+        flushAll();
+        var lvl = Math.min(h[1].length, 3);
+        out.push('<h' + lvl + '>' + inline(h[2]) + '</h' + lvl + '>');
+        continue;
+      }
+
+      if (/^(-{3,}|\*{3,}|_{3,})$/.test(t)) { flushAll(); out.push('<hr>'); continue; }
+
+      var q = t.match(/^>\s?(.*)$/);
+      if (q) { flushAll(); out.push('<blockquote>' + inline(q[1]) + '</blockquote>'); continue; }
+
+      var ul = t.match(/^[-*+]\s+(.*)$/);
+      var ol = t.match(/^\d+[.)]\s+(.*)$/);
+      if (ul || ol) {
+        flushPara();
+        var tag = ul ? 'ul' : 'ol';
+        if (!list || list.tag !== tag) { flushList(); list = { tag: tag, items: [] }; }
+        list.items.push('<li>' + inline((ul || ol)[1]) + '</li>');
+        continue;
+      }
+
+      flushList();
+      para.push(t);
+    }
+    flushAll();
+    return out.join('\n');
+  }
+
+  // ---------- render ----------
+  function notSignedIn() {
+    sub.textContent = '';
+    content.className = '';
+    content.innerHTML = '<div class="gate"><h2>Sign in on the main page first</h2>'
+      + '<p>Open the signup page and add your name and email. Once Wud has approved you, '
+      + 'her updates appear here.</p>'
+      + '<a class="btn" href="/">Go to the signup page</a></div>';
+  }
+
+  function notApproved(requested) {
+    sub.textContent = '';
+    content.className = '';
+    content.innerHTML = '<div class="gate"><h2>Not yet</h2>'
+      + '<p>' + (requested
+          ? 'Your request is with Wud. Once he approves you, Tracey\u2019s updates appear here.'
+          : 'Reading Tracey\u2019s updates needs Wud to approve you first. You can ask from the signup page.')
+      + '</p><a class="btn" href="/">Back to the signup page</a></div>';
+  }
+
+  function showPosts(posts) {
+    content.className = '';
+    if (!posts.length) {
+      sub.textContent = '';
+      content.innerHTML = '<div class="status">Nothing here yet. '
+        + 'When Tracey writes something, it will appear on this page.</div>';
+      return;
+    }
+    sub.textContent = 'Her own words, newest first.';
+    content.innerHTML = posts.map(function (p) {
+      return '<div class="post">'
+        + '<h2>' + esc(p.title) + '</h2>'
+        + '<p class="when">' + fmtWhen(p.published) + '</p>'
+        + '<div class="body">' + markdown(p.body) + '</div>'
+        + '</div>';
+    }).join('');
+  }
+
+  async function load() {
+    if (!me || !me.email) { notSignedIn(); return; }
+
+    var acc = null;
+    try {
+      var ar = await db.rpc('my_access', { p_email: me.email });
+      if (!ar.error) acc = ar.data;
+    } catch (e) {}
+
+    var level = acc ? acc.access : 'none';
+    if (level !== 'approved' && level !== 'close') {
+      notApproved(acc && acc.requested);
+      return;
+    }
+
+    var r = await db.rpc('list_posts', { p_email: me.email });
+    if (r.error) {
+      content.className = 'status';
+      content.textContent = 'Could not load her updates just now. Please try again shortly.';
+      return;
+    }
+    showPosts(r.data || []);
+  }
+
+  load();
+})();
+</script>
+</body>
+</html>
