@@ -23,6 +23,100 @@ function esc(s) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+
+// ---------- forwarding the real invitation ---------------------------
+
+// Adds the volunteer as an attendee on the original invitation, leaving
+// the UID, ORGANIZER and SEQUENCE untouched. That is what lets their
+// acceptance land back on the genuine event in Outlook.
+function addAttendee(ics, email, name) {
+  if (!ics) return null;
+  const lines = ics.replace(/\r\n/g, '\n').split('\n');
+  const out = [];
+  let inEvent = false, added = false;
+
+  const attendee =
+    'ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;' +
+    'RSVP=TRUE;CN=' + (name || email).replace(/[;,:]/g, ' ') +
+    ':mailto:' + email;
+
+  for (const line of lines) {
+    if (/^BEGIN:VEVENT\s*$/i.test(line)) inEvent = true;
+
+    // Drop any existing entry for this address so re-sends do not double up.
+    if (inEvent && /^ATTENDEE/i.test(line) &&
+        line.toLowerCase().includes('mailto:' + email.toLowerCase())) {
+      continue;
+    }
+
+    if (inEvent && !added && /^END:VEVENT\s*$/i.test(line)) {
+      out.push(attendee);
+      added = true;
+      inEvent = false;
+    }
+    out.push(line);
+  }
+
+  let result = out.join('\r\n');
+  // Outlook sends METHOD:REQUEST already; make sure it is there.
+  if (!/^METHOD:/im.test(result)) {
+    result = result.replace(/^BEGIN:VCALENDAR\s*$/im,
+                            'BEGIN:VCALENDAR\r\nMETHOD:REQUEST');
+  }
+  return result;
+}
+
+// Sends the invitation to the volunteer as a calendar attachment.
+async function sendInvite(env, need) {
+  const ics = addAttendee(need.ics, need.email, need.volunteer);
+  if (!ics) {
+    return 'no stored invitation for this need';
+  }
+
+  const when = `${fmtDate(need.date)}, ${need.start_time}${need.end_time ? '–' + need.end_time : ''}`;
+
+  const html = `
+    <div style="font-family:-apple-system,Segoe UI,sans-serif;font-size:15px;
+                line-height:1.55;color:#2B2321;max-width:480px">
+      <p style="font-size:17px;font-weight:600;margin:0 0 14px">Thank you for signing up</p>
+      <p style="margin:0 0 14px">
+        <strong>${esc(need.title)}</strong><br>
+        ${esc(when)}
+        ${need.location ? '<br>' + esc(need.location) : ''}
+      </p>
+      ${need.instructions ? `<p style="margin:0 0 14px">${esc(need.instructions)}</p>` : ''}
+      <p style="margin:0 0 14px">The invitation is attached — open it to add this
+      to your calendar. If the time or place changes you will get an update
+      automatically, so there is nothing to keep track of.</p>
+      <p style="margin:0 0 14px">If something comes up and you cannot make it,
+      free up the slot on the page and someone else can take it.</p>
+      ${env.SITE_URL ? `<p style="margin:18px 0 0"><a href="${env.SITE_URL}" style="color:#3D5A5B">Open the signup page</a></p>` : ''}
+    </div>`;
+
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'accept': 'application/json',
+      'api-key': env.BREVO_API_KEY
+    },
+    body: JSON.stringify({
+      sender: { email: env.NOTIFY_FROM, name: 'For Tracey' },
+      to: [{ email: need.email, name: need.volunteer || undefined }],
+      replyTo: { email: env.NOTIFY_FROM },
+      subject: `${need.title} — ${when}`,
+      htmlContent: html,
+      attachment: [{
+        name: 'invite.ics',
+        content: Buffer.from(ics, 'utf8').toString('base64')
+      }]
+    })
+  });
+
+  const out = await res.text();
+  return res.ok ? 'invite sent' : ('invite failed ' + res.status + ': ' + out.slice(0, 200));
+}
+
 export default async (request) => {
   // A GET shows what is configured, so problems can be diagnosed from a
   // browser. Reports only whether each value is present, never the value.
@@ -221,7 +315,38 @@ export default async (request) => {
       });
     }
     console.log('Notified', action, need.title);
-    return new Response(JSON.stringify({ sent: true }), {
+
+    // On a claim, forward the genuine Outlook invitation to the volunteer.
+    let inviteResult = 'not applicable';
+    if (action === 'claimed') {
+      try {
+        const full = await fetch(`${SUPABASE_URL}/rest/v1/rpc/claim_invite`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`
+          },
+          body: JSON.stringify({ p_token: INGEST_TOKEN, p_id: id })
+        });
+        if (full.ok) {
+          const detail = await full.json();
+          if (detail && detail.email) {
+            inviteResult = await sendInvite(
+              { BREVO_API_KEY, NOTIFY_FROM, SITE_URL }, detail);
+          } else {
+            inviteResult = 'no volunteer email on record';
+          }
+        } else {
+          inviteResult = 'could not read need: ' + full.status;
+        }
+      } catch (e) {
+        inviteResult = 'invite threw: ' + String(e).slice(0, 200);
+      }
+      console.log('Invite:', inviteResult);
+    }
+
+    return new Response(JSON.stringify({ sent: true, invite: inviteResult }), {
       status: 200, headers: { 'Content-Type': 'application/json' }
     });
   } catch (e) {
