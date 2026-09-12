@@ -7,11 +7,16 @@
 <meta name="description" content="Pick anything you can take. Everyone sees the same list, so nothing gets doubled up." />
 
 <!-- Link preview. iMessage, WhatsApp, Slack and Facebook read these; the
-     absolute URL matters, relative paths are ignored by most of them. -->
+     absolute URL on og:image matters, relative paths are ignored by most
+     of them.
+
+     og:url is deliberately absent. Some scrapers treat it as canonical
+     and cache the preview against it, which would defeat adding ?v=2 to
+     the link to force a fresh card. Without it, each distinct URL gets
+     its own preview. -->
 <meta property="og:type" content="website" />
 <meta property="og:title" content="For Tracey" />
 <meta property="og:description" content="Rides, walks, Izzy, errands — take whatever fits your week. Everyone sees the same list, so nothing gets doubled up." />
-<meta property="og:url" content="https://tracey-humphreys-help-her-recover.netlify.app/" />
 <meta property="og:image" content="https://tracey-humphreys-help-her-recover.netlify.app/preview.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
