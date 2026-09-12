@@ -144,9 +144,7 @@ export default async () => {
   });
 };
 
-// 15:00 UTC is 8am Pacific in summer, 7am in winter. Early enough that a
-// problem is known before the day's needs matter.
-export const config = {
-  path: '/api/health',
-  schedule: '0 15 * * *'
-};
+// Netlify allows a function to have a path or a schedule, never both, and
+// a scheduled function cannot be reached by URL. So this one answers at a
+// URL, and health-cron.js calls it on a schedule.
+export const config = { path: '/api/health' };
