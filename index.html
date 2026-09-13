@@ -1091,15 +1091,49 @@
     }
 
     if (a === 'release') {
+      var thisNeed = needs.filter(function(x){ return x.id === id; })[0];
+      var alsoHavePartner = thisNeed && thisNeed.partner_id
+        && thisNeed.partner_is_mine === true;
+
       var sure = await askYesNo(
         'Free up this slot?',
         'It goes back on the list for someone else, and Tracey is told.',
         'Yes, free it up',
         'No, keep it');
       if (!sure) return;
+
       var rr = await db.rpc('release_need', { p_id: id, p_email: me.email });
-      if (rr.error || rr.data !== true) { notice = 'Could not release that. Please refresh and try again.'; }
-      else { notice = ''; notify(id, 'released'); }
+      if (rr.error || rr.data !== true) {
+        notice = 'Could not release that. Please refresh and try again.';
+        await loadNeeds(); return;
+      }
+      notice = '';
+      notify(id, 'released');
+
+      // Someone who cannot make the appointment usually cannot do either
+      // journey. Asking mirrors the question on the way in.
+      if (alsoHavePartner) {
+        var otherLeg = thisNeed.leg === 'out' ? 'ride home' : 'ride there';
+        var alsoDrop = await askYesNo(
+          'You also have the ' + otherLeg,
+          'Would you like to free that up as well? If you keep it, she will '
+            + 'still need someone for the '
+            + (thisNeed.leg === 'out' ? 'journey there' : 'journey home') + '.',
+          'Yes, free up both',
+          'No, I can still do that one');
+
+        if (alsoDrop) {
+          var pr2 = await db.rpc('release_need', {
+            p_id: thisNeed.partner_id, p_email: me.email
+          });
+          if (!pr2.error && pr2.data === true) {
+            notify(thisNeed.partner_id, 'released');
+          } else {
+            notice = 'Freed this one, but could not free the ' + otherLeg + '.';
+          }
+        }
+      }
+
       await loadNeeds(); return;
     }
 
