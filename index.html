@@ -267,7 +267,24 @@
     } catch (e) { posts = []; }
 
     var r = await db.rpc('coordinator_data', { p_pass: pass, p_past: showPast });
-    if (r.error) { coordData = null; notice = 'That passphrase was not accepted.'; pass=''; }
+
+    if (r.error) {
+      // Tracey has her own passphrase and her own page. Rather than make
+      // her remember a second address, the same box recognises hers and
+      // sends her there.
+      try {
+        var t = await db.rpc('tracey_view', { p_pass: pass });
+        if (!t.error) {
+          try { sessionStorage.setItem('tracey_pass', pass); } catch (e) {}
+          window.location.href = '/mine';
+          return;
+        }
+      } catch (e) { /* not hers either */ }
+
+      coordData = null;
+      notice = 'That passphrase was not accepted.';
+      pass = '';
+    }
     else { coordData = r.data; notice = ''; }
     render();
   }
