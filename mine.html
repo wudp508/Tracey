@@ -48,9 +48,11 @@
   .item.open{border-style:dashed}
   .item details{margin:7px 0 0}
   .item summary{cursor:pointer;list-style:none;font-size:.77rem;font-weight:600;
-    color:var(--text-muted);padding:2px 0;display:inline-flex;align-items:center;gap:5px}
+    color:var(--teal);background:#EDF1F0;border:1px solid #D8E2E0;border-radius:100px;
+    padding:4px 11px;display:inline-flex;align-items:center;gap:5px;
+    -webkit-tap-highlight-color:transparent}
   .item summary::-webkit-details-marker{display:none}
-  .item summary::after{content:'\u203a';display:inline-block;transition:transform .15s;
+  .item summary::after{content:'›';display:inline-block;transition:transform .15s;
     font-size:.95rem;line-height:1}
   .item details[open] summary::after{transform:rotate(90deg)}
   .item .note{color:var(--text-muted);font-size:.81rem;line-height:1.5;
