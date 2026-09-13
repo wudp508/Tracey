@@ -84,6 +84,7 @@ export default async () => {
     await checkEndpoint(base, '/api/reminders?dry=1', [200]);
     await checkEndpoint(base, '/', [200]);
     await checkEndpoint(base, '/journal', [200]);
+    await checkEndpoint(base, '/mine', [200]);
     await checkEndpoint(base, '/preview.png', [200]);
   } else {
     record('site checks', false, 'SITE_URL not set, so pages were not checked');
