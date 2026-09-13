@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Your people</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<meta name="robots" content="noindex, nofollow" />
+<style>
+  :root{
+    --bg:#F7F5F0; --card-bg:#FFF; --text:#2B2321; --text-muted:#6E6558; --border:#E4DFD3;
+    --sage:#6B7F5E; --teal:#3D5A5B; --clay:#A85C32; --rose:#B5696A;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;
+       -webkit-font-smoothing:antialiased}
+  .app{max-width:640px;margin:0 auto;padding:26px 18px 64px}
+  h1{font-family:'Fraunces',serif;font-weight:600;font-size:1.85rem;margin:0 0 6px;
+     letter-spacing:-.01em}
+  .sub{margin:0 0 24px;color:var(--text-muted);font-size:.93rem;line-height:1.55;max-width:46ch}
+  .gate{background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:20px}
+  .gate p{color:var(--text-muted);font-size:.9rem;line-height:1.55;margin:0 0 14px}
+  input{width:100%;font-family:inherit;font-size:16px;padding:11px 13px;
+    border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--text);
+    margin-bottom:10px}
+  .btn{font-family:inherit;font-size:.87rem;font-weight:600;border:none;border-radius:8px;
+    padding:10px 17px;cursor:pointer;background:var(--text);color:#fff}
+  .btn.small{font-size:.76rem;padding:6px 11px;border-radius:6px;
+    background:var(--card-bg);border:1px solid var(--border);color:var(--text-muted)}
+  .btn.small.on{background:var(--text);border-color:var(--text);color:#fff}
+  .err{color:var(--rose);font-size:.85rem;margin:0 0 10px;min-height:1em}
+  .status{color:var(--text-muted);font-size:.9rem;padding:20px 0}
+  .warm{background:var(--card-bg);border:1px solid var(--sage);border-radius:11px;
+    padding:15px 17px;margin:0 0 22px}
+  .warm p{margin:0;font-size:.95rem;line-height:1.6;color:var(--text)}
+  .section-title{font-family:'Fraunces',serif;font-size:1.2rem;font-weight:500;
+    margin:26px 0 3px;letter-spacing:-.01em}
+  .section-sub{color:var(--text-muted);font-size:.83rem;margin:0 0 12px;line-height:1.5}
+  .day{font-size:.78rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;
+    letter-spacing:.05em;margin:18px 0 7px}
+  .item{background:var(--card-bg);border:1px solid var(--border);border-radius:10px;
+    padding:12px 14px;margin-bottom:8px}
+  .item h4{margin:0 0 2px;font-size:.93rem;font-weight:600}
+  .item .meta{color:var(--text-muted);font-size:.81rem;line-height:1.5;margin:0}
+  .item .who{color:var(--sage);font-weight:600}
+  .item.open{border-style:dashed}
+  .item.open .who{color:var(--text-muted);font-weight:400;font-style:italic}
+  .person{display:flex;justify-content:space-between;align-items:center;gap:10px;
+    padding:11px 0;border-top:1px solid var(--border)}
+  .person .nm{font-size:.88rem;font-weight:600}
+  .person .em{color:var(--text-muted);font-size:.78rem}
+  .btns{display:flex;gap:6px;flex:0 0 auto}
+  .empty{color:var(--text-muted);font-size:.87rem;padding:14px 0;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1 id="h1">Your people</h1>
+  <p class="sub" id="sub"></p>
+  <div id="content" class="status">Loading&hellip;</div>
+</div>
+
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+(function () {
+  var cfg = window.TRACEY_CONFIG || {};
+  var content = document.getElementById('content');
+  var sub = document.getElementById('sub');
+
+  if (!cfg.SUPABASE_URL || cfg.SUPABASE_URL.indexOf('YOUR-PROJECT') !== -1) {
+    content.textContent = 'config.js still has placeholder values.';
+    return;
+  }
+  var db = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+
+  var pass = null, data = null, err = '';
+
+  try { pass = sessionStorage.getItem('tracey_pass') || null; } catch (e) {}
+
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  function fmtDay(iso){
+    try {
+      var d = new Date(iso + 'T12:00:00Z');
+      var today = new Date(); today.setHours(12,0,0,0);
+      var diff = Math.round((d - today) / 86400000);
+      if (diff === 0) return 'Today';
+      if (diff === 1) return 'Tomorrow';
+      return d.toLocaleDateString(undefined,
+        { weekday:'long', month:'long', day:'numeric', timeZone:'UTC' });
+    } catch(e){ return iso; }
+  }
+
+  // ---------- the gate ----------
+  function gate() {
+    sub.textContent = '';
+    content.className = '';
+    content.innerHTML = '<div class="gate">'
+      + '<p>Enter your passphrase to see who is helping this week.</p>'
+      + '<div class="err">' + esc(err) + '</div>'
+      + '<input type="password" id="p" placeholder="Passphrase" autocomplete="current-password" />'
+      + '<button class="btn" id="go">Open</button></div>';
+
+    var input = document.getElementById('p');
+    function submit() {
+      var v = (input.value || '').trim();
+      if (!v) return;
+      pass = v;
+      try { sessionStorage.setItem('tracey_pass', v); } catch (e) {}
+      load();
+    }
+    document.getElementById('go').addEventListener('click', submit);
+    input.addEventListener('keydown', function(e){ if (e.key === 'Enter') submit(); });
+    input.focus();
+  }
+
+  // ---------- the view ----------
+  function render() {
+    content.className = '';
+
+    var needs = data.needs || [];
+    var covered = needs.filter(function(n){ return n.status === 'FILLED'; });
+    var open = needs.filter(function(n){ return n.status === 'OPEN'; });
+
+    // A sense of the whole, without counting anyone individually.
+    var warm = '';
+    if (data.helpers > 0) {
+      warm = '<div class="warm"><p>'
+        + data.helpers + (data.helpers === 1 ? ' friend has' : ' friends have')
+        + ' stepped in so far, covering ' + data.covered_total
+        + (data.covered_total === 1 ? ' thing' : ' things') + '.</p></div>';
+    }
+
+    // Grouped by day, so it reads like a week rather than a list.
+    var byDay = {};
+    needs.forEach(function(n){
+      (byDay[n.date] = byDay[n.date] || []).push(n);
+    });
+    var days = Object.keys(byDay).sort();
+
+    var schedule = days.length
+      ? days.map(function(d){
+          return '<div class="day">' + esc(fmtDay(d)) + '</div>'
+            + byDay[d].map(function(n){
+                var mine = n.status === 'FILLED';
+                return '<div class="item' + (mine ? '' : ' open') + '">'
+                  + '<h4>' + esc(n.title) + '</h4>'
+                  + '<p class="meta">' + esc(n.start_time)
+                  +   (n.end_time ? '\\u2013' + esc(n.end_time) : '')
+                  +   (n.location ? ' \\u00b7 ' + esc(n.location) : '') + '<br>'
+                  +   '<span class="who">'
+                  +   (mine ? esc(n.volunteer_name) : 'Nobody yet')
+                  +   '</span></p></div>';
+              }).join('');
+        }).join('')
+      : '<div class="empty">Nothing on the calendar just now.</div>';
+
+    // ---------- journal readers ----------
+    var pending = data.pending || [];
+    var readers = data.readers || [];
+
+    var pendingHtml = pending.length
+      ? pending.map(function(p){
+          return '<div class="person">'
+            + '<div><div class="nm">' + esc(p.name) + '</div>'
+            +   '<div class="em">' + esc(p.email) + '</div></div>'
+            + '<div class="btns">'
+            +   '<button class="btn small" data-act="set" data-email="' + esc(p.email) + '" data-level="approved">Let them read</button>'
+            +   '<button class="btn small" data-act="set" data-email="' + esc(p.email) + '" data-level="none">Not now</button>'
+            + '</div></div>';
+        }).join('')
+      : '<div class="empty">Nobody waiting.</div>';
+
+    var readersHtml = readers.length
+      ? readers.map(function(p){
+          return '<div class="person">'
+            + '<div><div class="nm">' + esc(p.name) + '</div>'
+            +   '<div class="em">' + (p.access === 'close' ? 'closer circle' : 'reads your updates') + '</div></div>'
+            + '<div class="btns">'
+            +   '<button class="btn small' + (p.access === 'approved' ? ' on' : '') + '" data-act="set" data-email="' + esc(p.email) + '" data-level="approved">Updates</button>'
+            +   '<button class="btn small' + (p.access === 'close' ? ' on' : '') + '" data-act="set" data-email="' + esc(p.email) + '" data-level="close">Closer</button>'
+            +   '<button class="btn small" data-act="set" data-email="' + esc(p.email) + '" data-level="none">Stop</button>'
+            + '</div></div>';
+        }).join('')
+      : '<div class="empty">Nobody reading your updates yet.</div>';
+
+    sub.textContent = 'What is coming up, and who is covering it.';
+    content.innerHTML = warm
+      + '<div class="section-title">The week ahead</div>'
+      + '<div class="section-sub">' + (open.length
+          ? open.length + (open.length === 1 ? ' thing is' : ' things are') + ' still open. Nobody expects you to sort that out.'
+          : 'Everything is covered.') + '</div>'
+      + schedule
+      + '<div class="section-title">Waiting to read your updates</div>'
+      + '<div class="section-sub">Yours to decide. Nobody is told which level they are on.</div>'
+      + pendingHtml
+      + '<div class="section-title">Reading your updates</div>'
+      + readersHtml;
+  }
+
+  // ---------- actions ----------
+  document.addEventListener('click', async function(e){
+    var el = e.target.closest('[data-act]');
+    if (!el) return;
+    if (el.getAttribute('data-act') !== 'set') return;
+
+    el.disabled = true;
+    var r = await db.rpc('tracey_set_access', {
+      p_pass: pass,
+      p_email: el.getAttribute('data-email'),
+      p_level: el.getAttribute('data-level')
+    });
+    el.disabled = false;
+    if (r.error || !r.data || r.data.ok !== true) {
+      window.alert('Could not change that just now. Please try again.');
+      return;
+    }
+    await load();
+  });
+
+  async function load() {
+    if (!pass) { gate(); return; }
+    content.className = 'status';
+    content.textContent = 'Loading\\u2026';
+
+    var r = await db.rpc('tracey_view', { p_pass: pass });
+    if (r.error) {
+      pass = null;
+      try { sessionStorage.removeItem('tracey_pass'); } catch (e) {}
+      err = 'That passphrase did not work.';
+      gate();
+      return;
+    }
+    err = '';
+    data = r.data;
+    render();
+  }
+
+  load();
+})();
+</script>
+</body>
+</html>
