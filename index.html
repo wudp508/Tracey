@@ -77,10 +77,14 @@
   .ttl{font-weight:600;font-size:.97rem;margin:0 0 3px}
   .loc{color:var(--text-muted);font-size:.83rem;margin:0 0 6px}
   .instr{margin:0 0 10px}
-  .instr summary{cursor:pointer;list-style:none;font-size:.79rem;font-weight:600;
-    color:var(--text-muted);padding:3px 0;display:inline-flex;align-items:center;gap:5px}
+  .instr summary{cursor:pointer;list-style:none;font-size:.78rem;font-weight:600;
+    color:var(--teal);background:#EDF1F0;border:1px solid #D8E2E0;border-radius:100px;
+    padding:4px 11px;display:inline-flex;align-items:center;gap:5px;
+    -webkit-tap-highlight-color:transparent}
+  .instr summary:active{background:#E2E9E7}
+  .row.mine .instr summary{color:var(--sage);background:#EFF2EC;border-color:#DDE4D6}
   .instr summary::-webkit-details-marker{display:none}
-  .instr summary::after{content:'\u203a';display:inline-block;transition:transform .15s;
+  .instr summary::after{content:'›';display:inline-block;transition:transform .15s;
     font-size:1rem;line-height:1}
   .instr[open] summary::after{transform:rotate(90deg)}
   .instr .text{color:var(--text-muted);font-size:.83rem;line-height:1.5;
@@ -172,7 +176,7 @@
     align-items:center;gap:10px}
   .help summary::-webkit-details-marker{display:none}
   .help summary::after{content:'+';color:var(--text-muted);font-weight:400;font-size:1.1rem}
-  .help details[open] summary::after{content:'\u2013'}
+  .help details[open] summary::after{content:'–'}
   .help p{margin:0 0 12px;font-size:.89rem;line-height:1.6;color:var(--text-muted)}
   .help p:last-child{margin-bottom:14px}
   .help h3{font-family:'Fraunces',serif;font-size:1.05rem;font-weight:500;
