@@ -172,6 +172,9 @@
                   +   '<span class="who">'
                   +   (mine ? esc(n.volunteer_name) : 'Nobody yet')
                   +   '</span></p>'
+                  + (!mine && n.other_half_covered
+                      ? '<p class="note" style="color:var(--clay);font-weight:600">'
+                        + 'The other half of this trip is covered</p>' : '')
                   + (String(n.instructions || '').trim()
                       ? '<details><summary>Details</summary>'
                         + '<p class="note">' + esc(String(n.instructions).trim()) + '</p></details>'
