@@ -76,7 +76,17 @@
   .bd{flex:1;min-width:0}
   .ttl{font-weight:600;font-size:.97rem;margin:0 0 3px}
   .loc{color:var(--text-muted);font-size:.83rem;margin:0 0 6px}
-  .instr{color:var(--text-muted);font-size:.83rem;line-height:1.45;margin:0 0 10px}
+  .instr{margin:0 0 10px}
+  .instr summary{cursor:pointer;list-style:none;font-size:.79rem;font-weight:600;
+    color:var(--text-muted);padding:3px 0;display:inline-flex;align-items:center;gap:5px}
+  .instr summary::-webkit-details-marker{display:none}
+  .instr summary::after{content:'\u203a';display:inline-block;transition:transform .15s;
+    font-size:1rem;line-height:1}
+  .instr[open] summary::after{transform:rotate(90deg)}
+  .instr .text{color:var(--text-muted);font-size:.83rem;line-height:1.5;
+    margin:5px 0 0;white-space:pre-wrap}
+  .row.mine .instr .text{color:var(--text);background:#FBF9F4;
+    border-left:2px solid var(--sage);padding:8px 10px;border-radius:0 5px 5px 0}
   .btn{font-family:inherit;font-size:.83rem;font-weight:600;border:none;border-radius:7px;
     padding:9px 15px;cursor:pointer}
   .btn.primary{background:var(--text);color:#fff}
@@ -549,6 +559,18 @@
       + '</p>';
   }
 
+  // Collapsed by default: with a fortnight of needs on screen, a note on
+  // every card turns a scannable list into a wall. Open by default on
+  // your own claim, because that is the person who has to act on it.
+  function instrBlock(n, mine) {
+    var t = String(n.instructions || '').trim();
+    if (!t) return '';
+    var label = mine ? 'What you need to know' : 'Details';
+    return '<details class="instr"' + (mine ? ' open' : '') + '>'
+      + '<summary>' + label + '</summary>'
+      + '<p class="text">' + esc(t) + '</p></details>';
+  }
+
   function row(n){
     var c = catBy[n.category] || catBy.other;
     var filled = n.status === 'FILLED';
@@ -567,7 +589,7 @@
       + '<div class="when">'+fmtD(n.date)+'<span class="time">'+esc(n.start_time)+'–'+esc(n.end_time)+'</span></div>'
       + '<div class="bd"><p class="ttl">'+esc(n.title)+'</p>'
       + (n.location ? '<p class="loc">'+esc(n.location)+'</p>' : '')
-      + (!filled ? '<p class="instr">'+esc(n.instructions)+'</p>' : '')
+      + instrBlock(n, mine)
       + act + '</div></div>';
   }
 
@@ -632,6 +654,10 @@
           +   '<strong>' + esc(n.volunteer_name || '') + '</strong>'
           +   (n.volunteer_email ? ' \u00b7 ' + esc(n.volunteer_email) : '')
           +   (n.invited ? ' \u00b7 invite sent' : ' \u00b7 invite not sent yet') + '</p>'
+          + (String(n.instructions || '').trim()
+              ? '<details class="instr"><summary>Details</summary>'
+                + '<p class="text">' + esc(String(n.instructions).trim()) + '</p></details>'
+              : '')
           + '<button class="btn ghost" data-action="unassign" data-id="' + n.id + '">They cancelled \u2014 free this up</button>'
           + '<div class="postbtns" style="margin-top:8px">'
           +   '<button class="danger" data-action="remove" data-id="' + n.id + '">Remove this need</button>'
