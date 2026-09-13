@@ -13,6 +13,10 @@
 
 const CATEGORIES = ['rides','walks','izzy','errands','other'];
 
+// An appointment that needs a lift each way. Tagged once, it becomes two
+// needs: a ride there at the start time, a ride home at the end.
+const ROUNDTRIP_RE = /#(roundtrip|bothways|ride2)\b/i;
+
 // ---------- iCalendar parsing ----------------------------------------
 
 // ICS folds long lines by starting continuations with a space or tab.
@@ -131,6 +135,7 @@ function stripTags(text) {
   CATEGORIES.forEach(c => {
     out = out.replace(new RegExp('#' + c, 'gi'), '');
   });
+  out = out.replace(ROUNDTRIP_RE, '');
   return out.replace(/\s{2,}/g, ' ').trim();
 }
 
@@ -459,6 +464,86 @@ export default async (request) => {
   if (recurIdProp) {
     const m = String(recurIdProp.value).trim().match(/^(\d{4})(\d{2})(\d{2})/);
     if (m) effectiveUid = uid + '::' + m[1] + m[2] + m[3];
+  }
+
+  const isRoundTrip = ROUNDTRIP_RE.test(summary) || ROUNDTRIP_RE.test(description);
+
+  // ---------- an appointment needing a lift each way ----------
+  // Handled before the series branch, because a repeating appointment
+  // needs a pair for every occurrence.
+  if (isRoundTrip) {
+    const dates = (ruleProp && !recurIdProp)
+      ? (expandRecurrence(ruleProp.value, start.date, collectExdates(lines)) || [start.date])
+      : [start.date];
+
+    if (effectiveMethod === 'CANCEL') {
+      const bases = dates.map(d => (ruleProp ? uid + '::' + d.replace(/-/g, '') : effectiveUid));
+      let total = 0;
+      for (const base of bases) {
+        try {
+          const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/cancel_pair`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`
+            },
+            body: JSON.stringify({ p_token: INGEST_TOKEN, p_base_uid: base })
+          });
+          if (res.ok) total++;
+        } catch (e) { console.error('Could not cancel a pair', e); }
+      }
+      console.log('Cancelled round trips:', total);
+      return new Response(JSON.stringify({ action: 'pairs_cancelled', count: total }), {
+        status: 200, headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    let made = 0;
+    const problems = [];
+    for (const d of dates) {
+      const base = ruleProp ? uid + '::' + d.replace(/-/g, '') : effectiveUid;
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/ingest_pair`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`
+          },
+          body: JSON.stringify({
+            p_token: INGEST_TOKEN,
+            p_base_uid: base,
+            p_sequence: sequence,
+            p_title: stripTags(summary),
+            p_category: 'rides',
+            p_location: location,
+            p_instructions: stripTags(description),
+            p_ics: icsText,
+            p_date: d,
+            p_start: start.time,
+            p_end: end ? end.time : start.time
+          })
+        });
+        if (res.ok) made++;
+        else problems.push((await res.text()).slice(0, 160));
+      } catch (e) {
+        problems.push(String(e && e.message ? e.message : e).slice(0, 120));
+      }
+    }
+
+    if (!made) {
+      return new Response(JSON.stringify({
+        error: 'database rejected the round trip',
+        detail: problems.slice(0, 2)
+      }), { status: 502, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    console.log('Round trips stored:', stripTags(summary), made, 'appointment(s)');
+    return new Response(JSON.stringify({
+      action: 'round_trip', appointments: made, needs: made * 2,
+      failed: problems.length
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   }
 
   // ---------- the whole series ----------
