@@ -76,6 +76,12 @@
   .bd{flex:1;min-width:0}
   .ttl{font-weight:600;font-size:.97rem;margin:0 0 3px}
   .loc{color:var(--text-muted);font-size:.83rem;margin:0 0 6px}
+  .pair{font-size:.79rem;font-weight:600;color:var(--clay);margin:0 0 7px;
+    display:flex;align-items:center;gap:5px}
+  .pair.done{color:var(--sage)}
+  .row.orphan{border-color:var(--clay);box-shadow:0 0 0 1px var(--clay)}
+  .row.orphan .ttl::after{content:' \2014 she needs a way ' attr(data-dir);
+    font-weight:400;color:var(--clay);font-size:.86rem}
   .instr{margin:0 0 10px}
   .instr summary{cursor:pointer;list-style:none;font-size:.78rem;font-weight:600;
     color:var(--teal);background:#EDF1F0;border:1px solid #D8E2E0;border-radius:100px;
@@ -566,6 +572,24 @@
   // Collapsed by default: with a fortnight of needs on screen, a note on
   // every card turns a scannable list into a wall. Open by default on
   // your own claim, because that is the person who has to act on it.
+  // The other half of an appointment. Whichever leg is still open is the
+  // one that matters: a covered ride there and an uncovered ride home is
+  // how somebody ends up stranded.
+  function pairLine(n) {
+    if (!n.partner_id) return '';
+    var goingOut = n.leg === 'out';
+    var otherWord = goingOut ? 'ride home' : 'ride there';
+
+    if (n.partner_status === 'OPEN') {
+      return '<p class="pair">Round trip \u00b7 the ' + otherWord
+        + ' at ' + esc(n.partner_time || '') + ' still needs someone</p>';
+    }
+    if (n.partner_is_mine) {
+      return '<p class="pair done">Round trip \u00b7 you have both halves</p>';
+    }
+    return '<p class="pair done">Round trip \u00b7 the ' + otherWord + ' is covered</p>';
+  }
+
   function instrBlock(n, mine) {
     var t = String(n.instructions || '').trim();
     if (!t) return '';
@@ -589,10 +613,13 @@
       act = '<button class="btn primary" data-action="claim" data-id="'+n.id+'"'+(b?' disabled':'')+'>'
           + (b ? 'Signing you up…' : 'I can help') + '</button>';
     }
-    return '<div class="row '+(filled?'filled':'')+' '+(mine?'mine':'')+'" style="--cat-color:'+c.color+'">'
+    var orphan = !filled && n.partner_id && n.partner_status === 'FILLED';
+    return '<div class="row '+(filled?'filled':'')+' '+(mine?'mine':'')
+      + (orphan ? ' orphan' : '')+'" style="--cat-color:'+c.color+'">'
       + '<div class="when">'+fmtD(n.date)+'<span class="time">'+esc(n.start_time)+'–'+esc(n.end_time)+'</span></div>'
       + '<div class="bd"><p class="ttl">'+esc(n.title)+'</p>'
       + (n.location ? '<p class="loc">'+esc(n.location)+'</p>' : '')
+      + pairLine(n)
       + instrBlock(n, mine)
       + act + '</div></div>';
   }
@@ -637,8 +664,17 @@
       }).join('') + '</datalist>';
 
       function assignCard(n) {
-        return '<div class="assign">'
+        // A leg whose other half is already covered: someone is relying
+        // on this being filled.
+        var orphaned = n.pair_key && all.some(function(o){
+          return o.pair_key === n.pair_key && o.id !== n.id && o.status === 'FILLED';
+        });
+        return '<div class="assign"' + (orphaned
+            ? ' style="border-color:var(--clay);box-shadow:0 0 0 1px var(--clay)"' : '') + '>'
           + '<h4>' + esc(n.title) + '</h4>'
+          + (orphaned ? '<p class="ameta" style="color:var(--clay);font-weight:600">'
+                        + 'The other half of this trip is covered \u2014 she has no way '
+                        + (n.leg === 'out' ? 'there' : 'home') + '</p>' : '')
           + '<p class="ameta">' + fmtL(n.date) + ', ' + esc(n.start_time) + '</p>'
           + '<div class="arow">'
           +   '<input type="text" id="an-' + n.id + '" placeholder="Name" autocapitalize="words" />'
@@ -805,6 +841,17 @@
     var cutoffStr = cutoff.toISOString().slice(0, 10);
 
     var openSoon = showAll ? open : open.filter(function(n){ return n.date <= cutoffStr; });
+
+    // A half-covered appointment is the most urgent thing on the page:
+    // somebody is already relying on one leg. Those sort first, and the
+    // card is marked.
+    openSoon = openSoon.slice().sort(function(a, b){
+      var ao = (a.partner_id && a.partner_status === 'FILLED') ? 0 : 1;
+      var bo = (b.partner_id && b.partner_status === 'FILLED') ? 0 : 1;
+      if (ao !== bo) return ao - bo;
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+      return 0;
+    });
     var hiddenCount = open.length - openSoon.length;
 
     var moreLine = '';
@@ -930,6 +977,27 @@
       else if (r.data === true) {
         notice = '';
         notify(id, 'claimed');
+
+        // The moment they have said yes to one leg is the moment they
+        // are thinking about the day. Asking now catches most of the
+        // cases where a return trip would otherwise be left open.
+        var claimedNeed = needs.filter(function(x){ return x.id === id; })[0];
+        if (claimedNeed && claimedNeed.partner_id && claimedNeed.partner_status === 'OPEN') {
+          var otherWord = claimedNeed.leg === 'out' ? 'ride home' : 'ride there';
+          if (window.confirm(
+                'The ' + otherWord + ' at ' + (claimedNeed.partner_time || '')
+                + ' still needs someone.\n\nCan you do that one as well?')) {
+            var pr = await db.rpc('claim_need', {
+              p_id: claimedNeed.partner_id, p_email: me.email, p_name: me.name
+            });
+            if (!pr.error && pr.data === true) {
+              notify(claimedNeed.partner_id, 'claimed');
+            } else {
+              notice = 'Someone else took the ' + otherWord + ' just then.';
+            }
+          }
+        }
+
         // Signing up for the first time also asks to read her updates,
         // so nobody has to think of requesting it.
         if (access && access.access === 'none' && !access.requested) {
