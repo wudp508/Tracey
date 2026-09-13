@@ -300,7 +300,7 @@ export default async (request) => {
     }
   }
 
-  if (!id || (action !== 'claimed' && action !== 'released')) {
+  if (!id || (action !== 'claimed' && action !== 'released' && action !== 'cancelled')) {
     return new Response('Bad request', { status: 400 });
   }
 
@@ -332,6 +332,62 @@ export default async (request) => {
   const site = SITE_URL || '';
 
   let subject, heading, lines;
+
+  // A coordinator removed the need. The volunteer is told directly,
+  // because nothing else will tell them.
+  if (action === 'cancelled') {
+    const when = `${fmtDate(need.date)}, ${need.start_time}${need.end_time ? '–' + need.end_time : ''}`;
+
+    if (need.email) {
+      const vHtml = `
+        <div style="font-family:-apple-system,Segoe UI,sans-serif;font-size:15px;
+                    line-height:1.55;color:#2B2321;max-width:480px">
+          <p style="font-size:17px;font-weight:600;margin:0 0 14px">This is no longer needed</p>
+          <p style="margin:0 0 14px">
+            <strong>${esc(need.title)}</strong><br>${esc(when)}
+            ${need.location ? '<br>' + esc(need.location) : ''}
+          </p>
+          <p style="margin:0 0 14px">Plans changed and this has been cancelled, so
+          there is nothing for you to do. Thank you for offering \u2014 it was
+          appreciated.</p>
+          <p style="margin:0 0 14px">You may still have it on your calendar; it is
+          safe to delete.</p>
+          ${SITE_URL ? `<p style="margin:18px 0 0"><a href="${SITE_URL}" style="color:#3D5A5B">See what else is open</a></p>` : ''}
+        </div>`;
+
+      try {
+        const vres = await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'accept': 'application/json',
+            'api-key': BREVO_API_KEY
+          },
+          body: JSON.stringify({
+            sender: { email: NOTIFY_FROM, name: 'For Tracey' },
+            to: [{ email: need.email, name: need.volunteer || undefined }],
+            replyTo: { email: NOTIFY_FROM },
+            subject: `Cancelled: ${need.title} \u2014 ${when}`,
+            htmlContent: vHtml,
+            textContent: `This is no longer needed.\n\n${need.title}\n${when}\n\n`
+                       + `Plans changed and this has been cancelled, so there is `
+                       + `nothing for you to do. Thank you for offering.`
+          })
+        });
+        if (!vres.ok) {
+          console.error('Cancellation to volunteer failed:', vres.status, await vres.text());
+        }
+      } catch (e) {
+        console.error('Could not tell the volunteer', e);
+      }
+    }
+
+    return new Response(JSON.stringify({
+      sent: true,
+      told: need.email || null,
+      was_invited: need.invited === true
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  }
 
   if (action === 'claimed') {
     subject = `${need.volunteer || 'Someone'} signed up: ${need.title}`;
