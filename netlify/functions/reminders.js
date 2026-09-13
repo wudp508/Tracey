@@ -173,7 +173,11 @@ export default async (request) => {
 
     const openRows = open.length
       ? open.map(n =>
-          `<li style="margin-bottom:7px"><strong>${esc(n.title)}</strong> \u00b7 ${esc(when(n))}${n.location ? '<br><span style="color:#6E6558">' + esc(n.location) + '</span>' : ''}</li>`
+          `<li style="margin-bottom:7px"><strong>${esc(n.title)}</strong> \u00b7 ${esc(when(n))}${n.location ? '<br><span style="color:#6E6558">' + esc(n.location) + '</span>' : ''}`
+          + (n.other_half_covered
+              ? `<br><span style="color:#A85C32;font-weight:600">The other half of this trip is covered \u2014 she would be stranded</span>`
+              : '')
+          + `</li>`
         ).join('')
       : '';
 
@@ -201,7 +205,9 @@ export default async (request) => {
     const text = `Tomorrow — ${dayName}\n\n`
       + (open.length
           ? `STILL UNCOVERED (${open.length}):\n`
-            + open.map(n => `- ${n.title} · ${when(n)}`).join('\n') + '\n\n'
+            + open.map(n => `- ${n.title} · ${when(n)}`
+                + (n.other_half_covered ? '  [other half covered — she would be stranded]' : '')
+              ).join('\n') + '\n\n'
           : 'Everything tomorrow is covered.\n\n')
       + (claimed.length
           ? `COVERED (${claimed.length}):\n`
