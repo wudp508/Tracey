@@ -80,6 +80,8 @@ export default async () => {
     await checkEndpoint(base, '/api/inbound-calendar', [405]);
     await checkEndpoint(base, '/api/inbound-post', [405]);
     await checkEndpoint(base, '/api/notify', [200]);
+    // ?dry=1 so the daily check never actually emails anyone.
+    await checkEndpoint(base, '/api/reminders?dry=1', [200]);
     await checkEndpoint(base, '/', [200]);
     await checkEndpoint(base, '/journal', [200]);
     await checkEndpoint(base, '/preview.png', [200]);
