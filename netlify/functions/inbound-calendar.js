@@ -134,6 +134,154 @@ function stripTags(text) {
   return out.replace(/\s{2,}/g, ' ').trim();
 }
 
+
+// ---------- repeat rules ------------------------------------------------
+
+// How far ahead a repeating event is expanded. Far enough that friends
+// can plan, short enough that a daily walk does not fill the page with
+// months of entries. Re-sending the invitation extends the window.
+// Twelve weeks ahead, but no more than thirty entries from one series.
+// A daily walk would otherwise put eighty-five rows on the page and bury
+// everything else. Re-sending the invitation rolls the window forward.
+const RECUR_DAYS = 84;
+const RECUR_MAX = 30;
+
+const DAY_CODES = { SU:0, MO:1, TU:2, WE:3, TH:4, FR:5, SA:6 };
+
+function ymd(d) {
+  return d.getUTCFullYear() + '-' +
+         String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
+         String(d.getUTCDate()).padStart(2, '0');
+}
+
+// Parses RRULE:FREQ=WEEKLY;BYDAY=MO,TH;UNTIL=... into a plain object.
+function parseRule(value) {
+  const out = {};
+  String(value || '').split(';').forEach(part => {
+    const eq = part.indexOf('=');
+    if (eq > 0) out[part.slice(0, eq).toUpperCase()] = part.slice(eq + 1);
+  });
+  return out;
+}
+
+// Dates are handled in UTC throughout. The event's wall-clock time is
+// carried separately as a display string, so no conversion is involved
+// and daylight saving cannot shift anything.
+function expandRecurrence(ruleValue, startDate, exdates) {
+  const rule = parseRule(ruleValue);
+  const freq = (rule.FREQ || '').toUpperCase();
+  if (!freq) return null;
+
+  const interval = Math.max(1, parseInt(rule.INTERVAL || '1', 10) || 1);
+  const count = rule.COUNT ? parseInt(rule.COUNT, 10) : null;
+
+  let until = null;
+  if (rule.UNTIL) {
+    const m = String(rule.UNTIL).match(/^(\d{4})(\d{2})(\d{2})/);
+    if (m) until = Date.UTC(+m[1], +m[2] - 1, +m[3], 23, 59, 59);
+  }
+
+  const [sy, sm, sd] = startDate.split('-').map(Number);
+  const start = new Date(Date.UTC(sy, sm - 1, sd));
+
+  const horizon = Date.now() + RECUR_DAYS * 86400000;
+  const skip = new Set(exdates || []);
+  const dates = [];
+
+  function add(d) {
+    const key = ymd(d);
+    if (skip.has(key)) return true;          // excluded, but still counts
+    if (dates.indexOf(key) === -1) dates.push(key);
+    return true;
+  }
+
+  if (freq === 'WEEKLY') {
+    const days = (rule.BYDAY || '')
+      .split(',')
+      .map(x => DAY_CODES[x.trim().slice(-2).toUpperCase()])
+      .filter(x => x !== undefined);
+    if (!days.length) days.push(start.getUTCDay());
+
+    // Start from the Sunday of the first week so BYDAY lands correctly.
+    const weekStart = new Date(start);
+    weekStart.setUTCDate(weekStart.getUTCDate() - weekStart.getUTCDay());
+
+    let emitted = 0;
+    for (let w = 0; w < 260; w++) {
+      const base = new Date(weekStart);
+      base.setUTCDate(base.getUTCDate() + w * 7 * interval);
+      if (base.getTime() > horizon + 7 * 86400000) break;
+
+      for (const dow of days.slice().sort((a, b) => a - b)) {
+        const d = new Date(base);
+        d.setUTCDate(d.getUTCDate() + dow);
+        if (d.getTime() < start.getTime()) continue;
+        if (until && d.getTime() > until) return dates;
+        if (d.getTime() > horizon) return dates;
+        add(d);
+        emitted++;
+        if (count && emitted >= count) return dates;
+        if (dates.length >= RECUR_MAX) return dates;
+      }
+    }
+    return dates;
+  }
+
+  if (freq === 'DAILY') {
+    let emitted = 0;
+    for (let i = 0; i < 400; i++) {
+      const d = new Date(start);
+      d.setUTCDate(d.getUTCDate() + i * interval);
+      if (until && d.getTime() > until) break;
+      if (d.getTime() > horizon) break;
+      add(d);
+      emitted++;
+      if (count && emitted >= count) break;
+      if (dates.length >= RECUR_MAX) break;
+    }
+    return dates;
+  }
+
+  if (freq === 'MONTHLY') {
+    const dayOfMonth = rule.BYMONTHDAY
+      ? parseInt(rule.BYMONTHDAY, 10) : start.getUTCDate();
+    let emitted = 0;
+    for (let i = 0; i < 60; i++) {
+      const d = new Date(Date.UTC(sy, sm - 1 + i * interval, dayOfMonth));
+      // Skip months with no such day, e.g. the 31st of February.
+      if (d.getUTCDate() !== dayOfMonth) continue;
+      if (d.getTime() < start.getTime()) continue;
+      if (until && d.getTime() > until) break;
+      if (d.getTime() > horizon) break;
+      add(d);
+      emitted++;
+      if (count && emitted >= count) break;
+      if (dates.length >= RECUR_MAX) break;
+    }
+    return dates;
+  }
+
+  // Yearly and anything unusual: treat as a single event rather than
+  // guessing. One correct need beats a page of wrong ones.
+  return null;
+}
+
+// EXDATE lines may list several dates, and there may be several lines.
+function collectExdates(lines) {
+  const out = [];
+  for (const line of lines) {
+    const colon = line.indexOf(':');
+    if (colon === -1) continue;
+    const key = line.slice(0, colon).split(';')[0].trim().toUpperCase();
+    if (key !== 'EXDATE') continue;
+    line.slice(colon + 1).split(',').forEach(v => {
+      const m = v.trim().match(/^(\d{4})(\d{2})(\d{2})/);
+      if (m) out.push(`${m[1]}-${m[2]}-${m[3]}`);
+    });
+  }
+  return out;
+}
+
 // ---------- finding the calendar part in the email --------------------
 
 // Walks the entire payload looking for anything that contains an
@@ -274,6 +422,11 @@ export default async (request) => {
   const seqProp = getProp(lines, 'SEQUENCE');
   const sequence = seqProp ? parseInt(String(seqProp.value).trim(), 10) || 0 : 0;
 
+  // A repeating event arrives as one invitation carrying a rule. A single
+  // changed occurrence arrives separately, carrying RECURRENCE-ID.
+  const ruleProp = getProp(lines, 'RRULE');
+  const recurIdProp = getProp(lines, 'RECURRENCE-ID');
+
   const statusProp = getProp(lines, 'STATUS');
   const icsStatus = statusProp ? String(statusProp.value).trim().toUpperCase() : '';
   const effectiveMethod = (method === 'CANCEL' || icsStatus === 'CANCELLED')
@@ -299,9 +452,96 @@ export default async (request) => {
 
   const category = extractCategory(summary, description);
 
+  // ---------- a changed single occurrence ----------
+  // Key it to the occurrence it replaces, so it updates that need rather
+  // than creating a stray one.
+  let effectiveUid = uid;
+  if (recurIdProp) {
+    const m = String(recurIdProp.value).trim().match(/^(\d{4})(\d{2})(\d{2})/);
+    if (m) effectiveUid = uid + '::' + m[1] + m[2] + m[3];
+  }
+
+  // ---------- the whole series ----------
+  if (ruleProp && !recurIdProp) {
+    if (effectiveMethod === 'CANCEL') {
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/cancel_series`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`
+          },
+          body: JSON.stringify({ p_token: INGEST_TOKEN, p_base_uid: uid })
+        });
+        const txt = await res.text();
+        console.log('Cancelled series', uid.slice(0, 40), txt);
+        return new Response(txt, {
+          status: res.ok ? 200 : 502,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (e) {
+        console.error('Could not cancel the series', e);
+        return new Response('Upstream unreachable', { status: 502 });
+      }
+    }
+
+    const dates = expandRecurrence(
+      ruleProp.value, start.date, collectExdates(lines));
+
+    if (dates && dates.length) {
+      const occurrences = dates.map(d => ({
+        date: d,
+        start: start.time,
+        end: end ? end.time : start.time
+      }));
+
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/ingest_series`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`
+          },
+          body: JSON.stringify({
+            p_token: INGEST_TOKEN,
+            p_base_uid: uid,
+            p_sequence: sequence,
+            p_title: stripTags(summary),
+            p_category: category,
+            p_location: location,
+            p_instructions: stripTags(description),
+            p_ics: icsText,
+            p_occurrences: occurrences
+          })
+        });
+        const txt = await res.text();
+        if (!res.ok) {
+          console.error('Series rejected:', res.status, txt);
+          return new Response(JSON.stringify({
+            error: 'database rejected the series',
+            status: res.status,
+            detail: txt.slice(0, 400),
+            sent: { uid: uid.slice(0, 60), occurrences: occurrences.length,
+                    first: occurrences[0], last: occurrences[occurrences.length - 1] }
+          }), { status: 502, headers: { 'Content-Type': 'application/json' } });
+        }
+        console.log('Series stored:', stripTags(summary), occurrences.length, 'occurrences');
+        return new Response(txt, {
+          status: 200, headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (e) {
+        console.error('Supabase unreachable', e);
+        return new Response('Upstream unreachable', { status: 502 });
+      }
+    }
+    // An unusual rule we do not expand falls through and becomes one need.
+  }
+
   const body = {
     p_token: INGEST_TOKEN,
-    p_uid: uid,
+    p_uid: effectiveUid,
     p_sequence: sequence,
     p_method: effectiveMethod,
     p_title: stripTags(summary),
