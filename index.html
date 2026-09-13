@@ -80,8 +80,7 @@
     display:flex;align-items:center;gap:5px}
   .pair.done{color:var(--sage)}
   .row.orphan{border-color:var(--clay);box-shadow:0 0 0 1px var(--clay)}
-  .row.orphan .ttl::after{content:' \2014 she needs a way ' attr(data-dir);
-    font-weight:400;color:var(--clay);font-size:.86rem}
+  .pair.urgent{color:var(--clay);font-weight:700}
   .instr{margin:0 0 10px}
   .instr summary{cursor:pointer;list-style:none;font-size:.78rem;font-weight:600;
     color:var(--teal);background:#EDF1F0;border:1px solid #D8E2E0;border-radius:100px;
@@ -577,17 +576,43 @@
   // how somebody ends up stranded.
   function pairLine(n) {
     if (!n.partner_id) return '';
-    var goingOut = n.leg === 'out';
-    var otherWord = goingOut ? 'ride home' : 'ride there';
 
-    if (n.partner_status === 'OPEN') {
+    // 'out' is the ride to the appointment, 'back' is the ride home. The
+    // other half is therefore the opposite one.
+    var otherWord = n.leg === 'out' ? 'ride home' : 'ride there';
+    var thisWord  = n.leg === 'out' ? 'ride there' : 'ride home';
+    var partnerOpen = n.partner_status === 'OPEN';
+    var mine = n.is_mine === true;
+    var partnerMine = n.partner_is_mine === true;
+
+    // This one is uncovered and the other half is taken: somebody is
+    // already relying on half a journey.
+    if (n.status === 'OPEN' && !partnerOpen) {
+      return '<p class="pair urgent">The ' + otherWord + ' is covered \u2014 '
+        + 'she has no ' + (n.leg === 'out' ? 'way there' : 'way home')
+        + ' without this</p>';
+    }
+
+    if (partnerOpen) {
       return '<p class="pair">Round trip \u00b7 the ' + otherWord
         + ' at ' + esc(n.partner_time || '') + ' still needs someone</p>';
     }
-    if (n.partner_is_mine) {
+
+    if (mine && partnerMine) {
       return '<p class="pair done">Round trip \u00b7 you have both halves</p>';
     }
-    return '<p class="pair done">Round trip \u00b7 the ' + otherWord + ' is covered</p>';
+
+    if (partnerMine) {
+      return '<p class="pair done">Round trip \u00b7 you have the '
+        + otherWord + '</p>';
+    }
+
+    if (mine) {
+      return '<p class="pair done">Round trip \u00b7 you have the ' + thisWord
+        + ', someone else has the ' + otherWord + '</p>';
+    }
+
+    return '<p class="pair done">Round trip \u00b7 both halves are covered</p>';
   }
 
   function instrBlock(n, mine) {
@@ -986,7 +1011,9 @@
           var otherWord = claimedNeed.leg === 'out' ? 'ride home' : 'ride there';
           if (window.confirm(
                 'The ' + otherWord + ' at ' + (claimedNeed.partner_time || '')
-                + ' still needs someone.\n\nCan you do that one as well?')) {
+                + ' still needs someone.\n\n'
+                + 'OK to take that one as well, or Cancel to leave it for '
+                + 'someone else.')) {
             var pr = await db.rpc('claim_need', {
               p_id: claimedNeed.partner_id, p_email: me.email, p_name: me.name
             });
