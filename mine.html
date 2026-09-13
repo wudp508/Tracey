@@ -57,7 +57,12 @@
 </head>
 <body>
 <div class="app">
-  <h1 id="h1">Your people</h1>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+    <h1 id="h1">Your people</h1>
+    <a href="/" style="flex:0 0 auto;font-size:.78rem;font-weight:600;
+       border:1px solid var(--border);background:var(--card-bg);color:var(--text-muted);
+       border-radius:100px;padding:6px 13px;text-decoration:none;margin-top:6px">Signup page</a>
+  </div>
   <p class="sub" id="sub"></p>
   <div id="content" class="status">Loading&hellip;</div>
 </div>
@@ -100,7 +105,8 @@
     sub.textContent = '';
     content.className = '';
     content.innerHTML = '<div class="gate">'
-      + '<p>Enter your passphrase to see who is helping this week.</p>'
+      + '<p>Enter your passphrase to see who is helping this week. '
+      + 'The same passphrase works from the Coordinator button on the signup page.</p>'
       + '<div class="err">' + esc(err) + '</div>'
       + '<input type="password" id="p" placeholder="Passphrase" autocomplete="current-password" />'
       + '<button class="btn" id="go">Open</button></div>';
