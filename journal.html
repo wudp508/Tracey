@@ -4,6 +4,15 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Tracey's journey</title>
+  <!-- Added to a home screen, this becomes the icon and the label.
+       Without them iOS uses a screenshot of the page and the full title. -->
+  <link rel="apple-touch-icon" href="/icon-180.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="apple-mobile-web-app-title" content="For Tracey" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="theme-color" content="#F7F5F0" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -220,8 +229,12 @@
 
     var r = await db.rpc('list_posts', { p_email: me.email });
 
-    // Opening the page is reading it, as far as the badge is concerned.
-    try { db.rpc('mark_seen', { p_email: me.email, p_what: 'journal' }); } catch (e) {}
+    // Opening the page is reading it, as far as the badge is concerned —
+    // but give it a moment, so a stray tap and a bounce straight back
+    // does not silently clear the count.
+    setTimeout(function () {
+      try { db.rpc('mark_seen', { p_email: me.email, p_what: 'journal' }); } catch (e) {}
+    }, 5000);
     if (r.error) {
       content.className = 'status';
       content.textContent = 'Could not load her updates just now. Please try again shortly.';
