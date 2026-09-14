@@ -219,6 +219,9 @@
     }
 
     var r = await db.rpc('list_posts', { p_email: me.email });
+
+    // Opening the page is reading it, as far as the badge is concerned.
+    try { db.rpc('mark_seen', { p_email: me.email, p_what: 'journal' }); } catch (e) {}
     if (r.error) {
       content.className = 'status';
       content.textContent = 'Could not load her updates just now. Please try again shortly.';
