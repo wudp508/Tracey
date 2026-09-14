@@ -28,4 +28,8 @@ export default async (request) => {
   });
 };
 
-export const config = { path: '/icon-:size.png' };
+// Listed one by one rather than as a pattern: a parameter followed by a
+// file extension is ambiguous, and there are only three.
+export const config = {
+  path: ['/icon-180.png', '/icon-192.png', '/icon-512.png']
+};
