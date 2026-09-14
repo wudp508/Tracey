@@ -1,281 +1,178 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Your people</title>
-  <!-- Added to a home screen, this becomes the icon and the label.
-       Without them iOS uses a screenshot of the page and the full title. -->
-  <link rel="apple-touch-icon" href="/icon-180.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
-  <link rel="manifest" href="/manifest.json" />
-  <meta name="apple-mobile-web-app-title" content="For Tracey" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="theme-color" content="#F7F5F0" />
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<meta name="robots" content="noindex, nofollow" />
-<style>
-  :root{
-    --bg:#F7F5F0; --card-bg:#FFF; --text:#2B2321; --text-muted:#6E6558; --border:#E4DFD3;
-    --sage:#6B7F5E; --teal:#3D5A5B; --clay:#A85C32; --rose:#B5696A;
+// Runs once a day and checks the system is actually working.
+//
+// Emails only when something is wrong. A monitor that writes to you
+// every morning stops being read by the second week, and then it is
+// worse than nothing.
+//
+// Visit /api/health in a browser to run it on demand and see the full
+// report whether or not there are problems.
+//
+// Environment variables: the ones the other functions already use.
+
+const CHECKS = [];
+
+function record(name, ok, detail) {
+  CHECKS.push({ name, ok, detail: detail || '' });
+}
+
+// Confirms an endpoint exists and is running our code. A GET to the
+// inbound functions should be refused by them, not 404ed by Netlify.
+async function checkEndpoint(base, path, expected) {
+  // Each check gets its own deadline. Without one, a single slow
+  // endpoint can use up the whole function's time and take the report
+  // down with it — which is how this check first failed.
+  const stop = AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined;
+  try {
+    const res = await fetch(base + path, { method: 'GET', signal: stop });
+    const ok = expected.includes(res.status);
+    record(path, ok, ok ? '' : 'returned ' + res.status);
+  } catch (e) {
+    const msg = String(e && e.message ? e.message : e);
+    record(path, false, /abort|timeout/i.test(msg)
+      ? 'no answer within five seconds'
+      : 'unreachable: ' + msg.slice(0, 120));
   }
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;
-       -webkit-font-smoothing:antialiased}
-  .app{max-width:640px;margin:0 auto;padding:26px 18px 64px}
-  h1{font-family:'Fraunces',serif;font-weight:600;font-size:1.85rem;margin:0 0 6px;
-     letter-spacing:-.01em}
-  .sub{margin:0 0 24px;color:var(--text-muted);font-size:.93rem;line-height:1.55;max-width:46ch}
-  .gate{background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:20px}
-  .gate p{color:var(--text-muted);font-size:.9rem;line-height:1.55;margin:0 0 14px}
-  input{width:100%;font-family:inherit;font-size:16px;padding:11px 13px;
-    border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--text);
-    margin-bottom:10px}
-  .btn{font-family:inherit;font-size:.87rem;font-weight:600;border:none;border-radius:8px;
-    padding:10px 17px;cursor:pointer;background:var(--text);color:#fff}
-  .btn.small{font-size:.76rem;padding:6px 11px;border-radius:6px;
-    background:var(--card-bg);border:1px solid var(--border);color:var(--text-muted)}
-  .btn.small.on{background:var(--text);border-color:var(--text);color:#fff}
-  .err{color:var(--rose);font-size:.85rem;margin:0 0 10px;min-height:1em}
-  .status{color:var(--text-muted);font-size:.9rem;padding:20px 0}
-  .warm{background:var(--card-bg);border:1px solid var(--sage);border-radius:11px;
-    padding:15px 17px;margin:0 0 22px}
-  .warm p{margin:0;font-size:.95rem;line-height:1.6;color:var(--text)}
-  .section-title{font-family:'Fraunces',serif;font-size:1.2rem;font-weight:500;
-    margin:26px 0 3px;letter-spacing:-.01em}
-  .section-sub{color:var(--text-muted);font-size:.83rem;margin:0 0 12px;line-height:1.5}
-  .day{font-size:.78rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;
-    letter-spacing:.05em;margin:18px 0 7px}
-  .item{background:var(--card-bg);border:1px solid var(--border);border-radius:10px;
-    padding:12px 14px;margin-bottom:8px}
-  .item h4{margin:0 0 2px;font-size:.93rem;font-weight:600}
-  .item .meta{color:var(--text-muted);font-size:.81rem;line-height:1.5;margin:0}
-  .item .who{color:var(--sage);font-weight:600}
-  .item.open{border-style:dashed}
-  .item details{margin:7px 0 0}
-  .item summary{cursor:pointer;list-style:none;font-size:.77rem;font-weight:600;
-    color:var(--teal);background:#EDF1F0;border:1px solid #D8E2E0;border-radius:100px;
-    padding:4px 11px;display:inline-flex;align-items:center;gap:5px;
-    -webkit-tap-highlight-color:transparent}
-  .item summary::-webkit-details-marker{display:none}
-  .item summary::after{content:'›';display:inline-block;transition:transform .15s;
-    font-size:.95rem;line-height:1}
-  .item details[open] summary::after{transform:rotate(90deg)}
-  .item .note{color:var(--text-muted);font-size:.81rem;line-height:1.5;
-    margin:5px 0 0;white-space:pre-wrap}
-  .item.open .who{color:var(--text-muted);font-weight:400;font-style:italic}
-  .person{display:flex;justify-content:space-between;align-items:center;gap:10px;
-    padding:11px 0;border-top:1px solid var(--border)}
-  .person .nm{font-size:.88rem;font-weight:600}
-  .person .em{color:var(--text-muted);font-size:.78rem}
-  .btns{display:flex;gap:6px;flex:0 0 auto}
-  .empty{color:var(--text-muted);font-size:.87rem;padding:14px 0;line-height:1.5}
-</style>
-</head>
-<body>
-<div class="app">
-  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
-    <h1 id="h1">Your people</h1>
-    <a href="/" style="flex:0 0 auto;font-size:.78rem;font-weight:600;
-       border:1px solid var(--border);background:var(--card-bg);color:var(--text-muted);
-       border-radius:100px;padding:6px 13px;text-decoration:none;margin-top:6px">Signup page</a>
-  </div>
-  <p class="sub" id="sub"></p>
-  <div id="content" class="status">Loading&hellip;</div>
-</div>
+}
 
-<script src="config.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script>
-(function () {
-  var cfg = window.TRACEY_CONFIG || {};
-  var content = document.getElementById('content');
-  var sub = document.getElementById('sub');
+export default async () => {
+  CHECKS.length = 0;
 
-  if (!cfg.SUPABASE_URL || cfg.SUPABASE_URL.indexOf('YOUR-PROJECT') !== -1) {
-    content.textContent = 'config.js still has placeholder values.';
-    return;
-  }
-  var db = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+  const {
+    SUPABASE_URL, SUPABASE_KEY, INGEST_TOKEN,
+    BREVO_API_KEY, NOTIFY_FROM, NOTIFY_TO, SITE_URL,
+    SMTP_LOGIN, SMTP_KEY, TIMEZONE
+  } = process.env;
 
-  var pass = null, data = null, err = '';
+  // ---------- configuration ----------
+  const required = { SUPABASE_URL, SUPABASE_KEY, INGEST_TOKEN,
+                     BREVO_API_KEY, NOTIFY_FROM, NOTIFY_TO,
+                     SMTP_LOGIN, SMTP_KEY, TIMEZONE };
+  const missing = Object.keys(required).filter(k => !required[k]);
+  record('environment variables', missing.length === 0,
+         missing.length ? 'missing: ' + missing.join(', ') : '');
 
-  try { pass = sessionStorage.getItem('tracey_pass') || null; } catch (e) {}
-
-  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
-    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
-
-  function fmtDay(iso){
+  // ---------- the database, and the write path that failed before ----------
+  let report = null;
+  if (SUPABASE_URL && SUPABASE_KEY && INGEST_TOKEN) {
     try {
-      var d = new Date(iso + 'T12:00:00Z');
-      var today = new Date(); today.setHours(12,0,0,0);
-      var diff = Math.round((d - today) / 86400000);
-      if (diff === 0) return 'Today';
-      if (diff === 1) return 'Tomorrow';
-      return d.toLocaleDateString(undefined,
-        { weekday:'long', month:'long', day:'numeric', timeZone:'UTC' });
-    } catch(e){ return iso; }
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/health_check`, {
+        method: 'POST',
+        signal: AbortSignal.timeout ? AbortSignal.timeout(6000) : undefined,
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`
+        },
+        body: JSON.stringify({ p_token: INGEST_TOKEN })
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        record('database', false, res.status + ': ' + text.slice(0, 200));
+      } else {
+        report = JSON.parse(text);
+        record('database', true);
+        record('calendar write path', report.ok === true || !(report.problems || []).some(
+          p => /canary/i.test(p)), (report.problems || []).filter(p => /canary/i.test(p)).join('; '));
+        (report.problems || []).filter(p => !/canary/i.test(p))
+          .forEach(p => record('needs attention', false, p));
+      }
+    } catch (e) {
+      record('database', false, 'unreachable: ' + String(e && e.message ? e.message : e).slice(0, 150));
+    }
   }
 
-  // ---------- the gate ----------
-  function gate() {
-    sub.textContent = '';
-    content.className = '';
-    content.innerHTML = '<div class="gate">'
-      + '<p>Enter your passphrase to see who is helping this week. '
-      + 'The same passphrase works from the Coordinator button on the signup page.</p>'
-      + '<div class="err">' + esc(err) + '</div>'
-      + '<input type="password" id="p" placeholder="Passphrase" autocomplete="current-password" />'
-      + '<button class="btn" id="go">Open</button></div>';
-
-    var input = document.getElementById('p');
-    function submit() {
-      var v = (input.value || '').trim();
-      if (!v) return;
-      pass = v;
-      try { sessionStorage.setItem('tracey_pass', v); } catch (e) {}
-      load();
-    }
-    document.getElementById('go').addEventListener('click', submit);
-    input.addEventListener('keydown', function(e){ if (e.key === 'Enter') submit(); });
-    input.focus();
+  // ---------- the endpoints the mail relay posts to ----------
+  const base = (SITE_URL || '').replace(/\/+$/, '');
+  if (base) {
+    // All at once rather than one after another. Eleven sequential
+    // requests, one of which does its own database work, ran past
+    // Netlify's ten-second limit and the whole check died.
+    //
+    // 405 is our own "method not allowed", which proves the function ran.
+    await Promise.all([
+      checkEndpoint(base, '/api/inbound-calendar', [405]),
+      checkEndpoint(base, '/api/inbound-post', [405]),
+      checkEndpoint(base, '/api/notify', [200]),
+      // ?dry=1 so the daily check never actually emails anyone.
+      checkEndpoint(base, '/api/reminders?dry=1', [200]),
+      checkEndpoint(base, '/', [200]),
+      checkEndpoint(base, '/journal', [200]),
+      checkEndpoint(base, '/mine', [200]),
+      checkEndpoint(base, '/preview.png', [200]),
+      checkEndpoint(base, '/icon-180.png', [200]),
+      checkEndpoint(base, '/manifest.json', [200])
+    ]);
+  } else {
+    record('site checks', false, 'SITE_URL not set, so pages were not checked');
   }
 
-  // ---------- the view ----------
-  function render() {
-    content.className = '';
-
-    var needs = data.needs || [];
-    var covered = needs.filter(function(n){ return n.status === 'FILLED'; });
-    var open = needs.filter(function(n){ return n.status === 'OPEN'; });
-
-    // A sense of the whole, without counting anyone individually.
-    var warm = '';
-    if (data.helpers > 0) {
-      warm = '<div class="warm"><p>'
-        + data.helpers + (data.helpers === 1 ? ' friend has' : ' friends have')
-        + ' stepped in so far, covering ' + data.covered_total
-        + (data.covered_total === 1 ? ' thing' : ' things') + '.</p></div>';
-    }
-
-    // Grouped by day, so it reads like a week rather than a list.
-    var byDay = {};
-    needs.forEach(function(n){
-      (byDay[n.date] = byDay[n.date] || []).push(n);
-    });
-    var days = Object.keys(byDay).sort();
-
-    var schedule = days.length
-      ? days.map(function(d){
-          return '<div class="day">' + esc(fmtDay(d)) + '</div>'
-            + byDay[d].map(function(n){
-                var mine = n.status === 'FILLED';
-                return '<div class="item' + (mine ? '' : ' open') + '">'
-                  + '<h4>' + esc(n.title) + '</h4>'
-                  + '<p class="meta">' + esc(n.start_time)
-                  +   (n.end_time ? '\\u2013' + esc(n.end_time) : '')
-                  +   (n.location ? ' \\u00b7 ' + esc(n.location) : '') + '<br>'
-                  +   '<span class="who">'
-                  +   (mine ? esc(n.volunteer_name) : 'Nobody yet')
-                  +   '</span></p>'
-                  + (!mine && n.other_half_covered
-                      ? '<p class="note" style="color:var(--clay);font-weight:600">'
-                        + 'The other half of this trip is covered</p>' : '')
-                  + (String(n.instructions || '').trim()
-                      ? '<details><summary>Details</summary>'
-                        + '<p class="note">' + esc(String(n.instructions).trim()) + '</p></details>'
-                      : '')
-                  + '</div>';
-              }).join('');
-        }).join('')
-      : '<div class="empty">Nothing on the calendar just now.</div>';
-
-    // ---------- journal readers ----------
-    var pending = data.pending || [];
-    var readers = data.readers || [];
-
-    var pendingHtml = pending.length
-      ? pending.map(function(p){
-          return '<div class="person">'
-            + '<div><div class="nm">' + esc(p.name) + '</div>'
-            +   '<div class="em">' + esc(p.email) + '</div></div>'
-            + '<div class="btns">'
-            +   '<button class="btn small" data-act="set" data-email="' + esc(p.email) + '" data-level="approved">Let them read</button>'
-            +   '<button class="btn small" data-act="set" data-email="' + esc(p.email) + '" data-level="none">Not now</button>'
-            + '</div></div>';
-        }).join('')
-      : '<div class="empty">Nobody waiting.</div>';
-
-    var readersHtml = readers.length
-      ? readers.map(function(p){
-          return '<div class="person">'
-            + '<div><div class="nm">' + esc(p.name) + '</div>'
-            +   '<div class="em">' + (p.access === 'close' ? 'closer circle' : 'reads your updates') + '</div></div>'
-            + '<div class="btns">'
-            +   '<button class="btn small' + (p.access === 'approved' ? ' on' : '') + '" data-act="set" data-email="' + esc(p.email) + '" data-level="approved">Updates</button>'
-            +   '<button class="btn small' + (p.access === 'close' ? ' on' : '') + '" data-act="set" data-email="' + esc(p.email) + '" data-level="close">Closer</button>'
-            +   '<button class="btn small" data-act="set" data-email="' + esc(p.email) + '" data-level="none">Stop</button>'
-            + '</div></div>';
-        }).join('')
-      : '<div class="empty">Nobody reading your updates yet.</div>';
-
-    sub.textContent = 'What is coming up, and who is covering it.';
-    content.innerHTML = warm
-      + '<div class="section-title">The week ahead</div>'
-      + '<div class="section-sub">' + (open.length
-          ? open.length + (open.length === 1 ? ' thing is' : ' things are') + ' still open. Nobody expects you to sort that out.'
-          : 'Everything is covered.') + '</div>'
-      + schedule
-      + '<div class="section-title">Waiting to read your updates</div>'
-      + '<div class="section-sub">Yours to decide. Nobody is told which level they are on.</div>'
-      + pendingHtml
-      + '<div class="section-title">Reading your updates</div>'
-      + readersHtml;
-  }
-
-  // ---------- actions ----------
-  document.addEventListener('click', async function(e){
-    var el = e.target.closest('[data-act]');
-    if (!el) return;
-    if (el.getAttribute('data-act') !== 'set') return;
-
-    el.disabled = true;
-    var r = await db.rpc('tracey_set_access', {
-      p_pass: pass,
-      p_email: el.getAttribute('data-email'),
-      p_level: el.getAttribute('data-level')
-    });
-    el.disabled = false;
-    if (r.error || !r.data || r.data.ok !== true) {
-      window.alert('Could not change that just now. Please try again.');
-      return;
-    }
-    await load();
+  // Running in parallel means they finish in whatever order they finish.
+  // Sorting keeps the report reading the same way every time.
+  const ORDER = ['environment variables', 'database', 'calendar write path'];
+  CHECKS.sort((a, b) => {
+    const ai = ORDER.indexOf(a.name), bi = ORDER.indexOf(b.name);
+    if (ai !== -1 || bi !== -1) return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+    return a.name.localeCompare(b.name);
   });
 
-  async function load() {
-    if (!pass) { gate(); return; }
-    content.className = 'status';
-    content.textContent = 'Loading\\u2026';
+  const failures = CHECKS.filter(c => !c.ok);
+  const healthy = failures.length === 0;
 
-    var r = await db.rpc('tracey_view', { p_pass: pass });
-    if (r.error) {
-      pass = null;
-      try { sessionStorage.removeItem('tracey_pass'); } catch (e) {}
-      err = 'That passphrase did not work.';
-      gate();
-      return;
+  // ---------- tell someone, but only when it matters ----------
+  if (!healthy && BREVO_API_KEY && NOTIFY_FROM && NOTIFY_TO) {
+    const rows = failures.map(f =>
+      `<li><strong>${f.name}</strong>${f.detail ? ' \u2014 ' + f.detail : ''}</li>`).join('');
+    const html = `
+      <div style="font-family:-apple-system,Segoe UI,sans-serif;font-size:15px;
+                  line-height:1.55;color:#2B2321;max-width:520px">
+        <p style="font-size:17px;font-weight:600;margin:0 0 14px">
+          The signup page needs a look</p>
+        <ul style="margin:0 0 16px;padding-left:20px">${rows}</ul>
+        <p style="margin:0 0 14px;color:#6E6558;font-size:13px">
+          Everything else checked out. This runs once a day and only writes
+          when something is wrong.</p>
+        ${base ? `<p style="margin:16px 0 0"><a href="${base}" style="color:#3D5A5B">Open the signup page</a></p>` : ''}
+      </div>`;
+
+    try {
+      await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'accept': 'application/json',
+          'api-key': BREVO_API_KEY
+        },
+        body: JSON.stringify({
+          sender: { email: NOTIFY_FROM, name: 'For Tracey' },
+          to: NOTIFY_TO.split(',').map(e => e.trim()).filter(Boolean).map(e => ({ email: e })),
+          subject: `For Tracey: ${failures.length} thing${failures.length === 1 ? '' : 's'} to look at`,
+          htmlContent: html,
+          textContent: failures.map(f => `- ${f.name}${f.detail ? ': ' + f.detail : ''}`).join('\n')
+        })
+      });
+    } catch (e) {
+      console.error('Could not send the health email', e);
     }
-    err = '';
-    data = r.data;
-    render();
   }
 
-  load();
-})();
-</script>
-</body>
-</html>
+  console.log(healthy ? 'Health check passed' : 'Health check found problems',
+              JSON.stringify(failures));
+
+  return new Response(JSON.stringify({
+    healthy: healthy,
+    checks: CHECKS,
+    summary: report ? {
+      open_needs: report.open_needs,
+      claimed_tomorrow: report.claimed_tomorrow,
+      posts: report.posts
+    } : null
+  }, null, 2), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' }
+  });
+};
+
+// Netlify allows a function to have a path or a schedule, never both, and
+// a scheduled function cannot be reached by URL. So this one answers at a
+// URL, and health-cron.js calls it on a schedule.
+export const config = { path: '/api/health' };
