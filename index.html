@@ -28,6 +28,15 @@
 <meta name="twitter:image" content="https://tracey-humphreys-help-her-recover.netlify.app/preview.png" />
 
 <meta name="theme-color" content="#F7F5F0" />
+  <!-- Added to a home screen, this becomes the icon and the label.
+       Without them iOS uses a screenshot of the page and the full title. -->
+  <link rel="apple-touch-icon" href="/icon-180.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="apple-mobile-web-app-title" content="For Tracey" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="theme-color" content="#F7F5F0" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -81,6 +90,21 @@
   .pair.done{color:var(--sage)}
   .row.orphan{border-color:var(--clay);box-shadow:0 0 0 1px var(--clay)}
   .pair.urgent{color:var(--clay);font-weight:700}
+  .addhome{display:flex;align-items:center;gap:11px;background:var(--card-bg);
+    border:1px solid var(--border);border-radius:11px;padding:11px 13px;margin:0 0 16px;
+    cursor:pointer;font-family:inherit;text-align:left;width:100%}
+  .addhome .ic{flex:0 0 auto;width:34px;height:34px;border-radius:9px;
+    background:#EDF1F0;display:flex;align-items:center;justify-content:center}
+  .addhome .ic svg{width:18px;height:18px}
+  .addhome .tx{flex:1;min-width:0}
+  .addhome strong{display:block;font-size:.87rem;font-weight:600;color:var(--text)}
+  .addhome span{font-size:.79rem;color:var(--text-muted);line-height:1.4}
+  .addhome .x{flex:0 0 auto;font-size:1.1rem;color:var(--text-muted);
+    padding:2px 6px;background:none;border:none;cursor:pointer;font-family:inherit}
+  .howto{font-size:.88rem;line-height:1.6;color:var(--text-muted)}
+  .howto ol{margin:0;padding-left:20px}
+  .howto li{margin-bottom:8px}
+  .howto strong{color:var(--text)}
   .newtag{display:inline-block;font-size:.66rem;font-weight:700;letter-spacing:.06em;
     text-transform:uppercase;color:#fff;background:var(--clay);border-radius:100px;
     padding:2px 7px;margin-left:7px;vertical-align:middle}
@@ -188,7 +212,6 @@
   .yours-box .w{color:var(--text-muted)}
   .together{font-size:.85rem;color:var(--text-muted);line-height:1.5;
     margin:0 0 20px;padding:0 2px}
-  .shortsub{font-size:.88rem;color:var(--text-muted);line-height:1.5;margin:0 0 16px}
   .moreline{text-align:center;padding:16px 0 4px}
   .moreline button{font-family:inherit;font-size:.84rem;font-weight:600;
     background:transparent;border:none;color:var(--text-muted);
@@ -272,6 +295,8 @@
   var showPast = false;   // coordinator view: include finished needs
   var showAll = false;    // friend view: beyond the next fortnight
   var newIds = null;      // ids that were new on arrival, held for the visit
+  var installEvt = null;  // Android only; iOS never fires this
+  var hideAdd = false;
   var coord = false, pass = '', copiedKey = null, notice = '', busy = null, poll = null;
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
@@ -314,7 +339,11 @@
         // one-offs are held to the two weeks the list shows.
         if (n.date <= farStr) newIds[n.id] = true;
       });
-      try { db.rpc('mark_seen', { p_email: me.email, p_what: 'needs' }); } catch (e) {}
+      // Nothing is marked seen just for loading the page. A friend who
+      // opens it, reads, and closes it without signing up for anything
+      // should find the same markers next time — they have not dealt
+      // with any of it yet. The markers clear when they claim something,
+      // or age out on their own.
     }
     if (r.error) { notice = 'Could not reach the schedule. Check your connection and reload.'; }
     else { needs = r.data || []; notice = ''; }
@@ -627,6 +656,40 @@
   // The browser's own confirm box only offers OK and Cancel, which makes
   // a yes/no question read awkwardly. This asks properly, and resolves
   // to true or false so the claim flow can wait on it.
+  // A plain walkthrough rather than a yes/no, so it uses the same card
+  // style without pretending to be a question.
+  function showHowTo() {
+    return new Promise(function (resolve) {
+      var bg = document.createElement('div');
+      bg.className = 'ask-bg';
+      bg.innerHTML = '<div class="ask">'
+        + '<h3>Add it to your home screen</h3>'
+        + '<div class="howto"><ol>'
+        +   '<li>Tap the <strong>Share</strong> button at the bottom of Safari '
+        +     '\u2014 a square with an arrow pointing up.</li>'
+        +   '<li>Scroll down the list and tap <strong>Add to Home Screen</strong>.</li>'
+        +   '<li>Tap <strong>Add</strong>.</li>'
+        + '</ol><p style="margin:14px 0 0">It will sit with your apps, and open '
+        + 'straight to this page.</p></div>'
+        + '<div class="acts" style="margin-top:18px">'
+        +   '<button class="yes" data-close="1">Got it</button>'
+        + '</div></div>';
+
+      function done() {
+        if (bg.parentNode) bg.parentNode.removeChild(bg);
+        document.removeEventListener('keydown', onKey);
+        resolve();
+      }
+      function onKey(ev) { if (ev.key === 'Escape') done(); }
+
+      bg.addEventListener('click', function (ev) {
+        if (ev.target.closest('[data-close]') || ev.target === bg) done();
+      });
+      document.addEventListener('keydown', onKey);
+      document.body.appendChild(bg);
+    });
+  }
+
   function askYesNo(heading, detail, yesLabel, noLabel) {
     return new Promise(function (resolve) {
       var bg = document.createElement('div');
@@ -655,6 +718,41 @@
       document.addEventListener('keydown', onKey);
       document.body.appendChild(bg);
     });
+  }
+
+  // Adding to the home screen.
+  //
+  // Android browsers fire an event we can use to show the real install
+  // dialog. Safari does not and never has, so on an iPhone the only
+  // route is Share then Add to Home Screen \u2014 which most people have
+  // never noticed. Showing them where it is is the whole value here.
+  function alreadyInstalled() {
+    try {
+      return window.matchMedia('(display-mode: standalone)').matches
+          || window.navigator.standalone === true;
+    } catch (e) { return false; }
+  }
+
+  function isApple() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent)
+        || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  }
+
+  function addHomeCard() {
+    if (hideAdd || alreadyInstalled()) return '';
+    if (!isApple() && !installEvt) return '';   // nothing useful to offer
+
+    return '<div class="addhome" data-action="addhome">'
+      + '<span class="ic">'
+      +   '<svg viewBox="0 0 24 24" fill="none" stroke="#3D5A5B" stroke-width="2" '
+      +   'stroke-linecap="round" stroke-linejoin="round">'
+      +   '<rect x="5" y="2" width="14" height="20" rx="2"/>'
+      +   '<line x1="12" y1="8" x2="12" y2="14"/><line x1="9" y1="11" x2="15" y2="11"/>'
+      +   '</svg></span>'
+      + '<span class="tx"><strong>Keep this on your home screen</strong>'
+      +   '<span>One tap to see what Tracey needs.</span></span>'
+      + '<button class="x" data-action="hideadd" aria-label="Dismiss">\u00d7</button>'
+      + '</div>';
   }
 
   function pairLine(n) {
@@ -935,12 +1033,9 @@
       return '<button class="chip '+(cat===c.key?'active':'')+'" data-action="filter" data-cat="'+c.key+'">'+c.label+'</button>';
     }).join('');
 
-    // The welcome note earns its place once. After that it is furniture
-    // between a returning friend and the list they came for, so it is
-    // replaced by a single line. The full version still greets anyone
-    // arriving for the first time, on the registration screen.
-    var shortIntro = '<p class="shortsub">Take whatever fits your week. '
-      + 'Everyone sees the same list, so nothing gets doubled up.</p>';
+    // The welcome note earns its place once, on the registration screen.
+    // A returning friend gets the one-line subtitle under the title and
+    // nothing else, because they came for the list.
 
     // Beyond a fortnight, a daily series would bury everything. Friends
     // can see the rest, they just have to ask for it.
@@ -983,7 +1078,8 @@
       : '';
 
     content.innerHTML = banner
-      + (showHelp ? helpPanel() : shortIntro)
+      + (showHelp ? helpPanel() : '')
+      + addHomeCard()
       + newBar
       + '<div class="me"><span>Signed in as <strong>'+esc(me.name)+'</strong> \u00b7 '+esc(me.email)+'</span>'
       + '<button class="btn link" data-action="editme">Change</button></div>'
@@ -999,6 +1095,22 @@
       + '<div class="section-title">Already covered</div>'
       + (cov.length ? cov.map(row).join('') : '<div class="empty">Nothing covered yet.</div>');
   }
+
+  // Android fires this when the browser would have offered installation.
+  // Holding on to it lets the card trigger the real dialog. Safari never
+  // fires it, which is why the card falls back to instructions.
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    installEvt = e;
+    render();
+  });
+
+  window.addEventListener('appinstalled', function () {
+    hideAdd = true;
+    render();
+  });
+
+  try { hideAdd = localStorage.getItem('tracey_hide_add') === '1'; } catch (e) {}
 
   var helpBtn = document.getElementById('helpbtn');
   helpBtn.addEventListener('click', function(){
@@ -1098,6 +1210,10 @@
         notice = '';
         notify(id, 'claimed');
 
+        // They have engaged with the list, so the markers have done
+        // their job. Cleared for everything, not just this one.
+        try { db.rpc('mark_seen', { p_email: me.email, p_what: 'needs' }); } catch (e) {}
+
         // The moment they have said yes to one leg is the moment they
         // are thinking about the day. Asking now catches most of the
         // cases where a return trip would otherwise be left open.
@@ -1185,6 +1301,33 @@
       }
 
       await loadNeeds(); return;
+    }
+
+    if (a === 'hideadd') {
+      e.stopPropagation();
+      hideAdd = true;
+      try { localStorage.setItem('tracey_hide_add', '1'); } catch (err) {}
+      render();
+      return;
+    }
+
+    if (a === 'addhome') {
+      // Android: the browser will show its own dialog.
+      if (installEvt) {
+        installEvt.prompt();
+        try {
+          var choice = await installEvt.userChoice;
+          if (choice && choice.outcome === 'accepted') hideAdd = true;
+        } catch (err) {}
+        installEvt = null;
+        render();
+        return;
+      }
+
+      // iPhone and iPad: there is no dialog to ask for. Show where the
+      // option actually lives, since almost nobody has found it.
+      await showHowTo();
+      return;
     }
 
     if (a === 'journey-ask') {
