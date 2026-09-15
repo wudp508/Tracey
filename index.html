@@ -108,6 +108,13 @@
   .newtag{display:inline-block;font-size:.66rem;font-weight:700;letter-spacing:.06em;
     text-transform:uppercase;color:#fff;background:var(--clay);border-radius:100px;
     padding:2px 7px;margin-left:7px;vertical-align:middle}
+  .askbar{display:flex;justify-content:space-between;align-items:center;gap:10px;
+    background:var(--card-bg);border:1px solid var(--border);border-radius:9px;
+    padding:10px 13px;margin:0 0 18px;font-size:.83rem;color:var(--text-muted)}
+  .askbar button{font-size:.78rem;font-weight:600;padding:7px 13px;border-radius:7px;
+    border:1px solid var(--sage);background:var(--sage);color:#fff;
+    cursor:pointer;font-family:inherit;flex:0 0 auto}
+  .askbar button:disabled{opacity:.55}
   .newbar{background:#FBF3EE;border:1px solid #E8D3C4;border-radius:9px;
     padding:10px 13px;margin:0 0 16px;font-size:.86rem;font-weight:600;
     color:var(--clay);line-height:1.45}
@@ -297,6 +304,7 @@
   var newIds = null;      // ids that were new on arrival, held for the visit
   var installEvt = null;  // Android only; iOS never fires this
   var hideAdd = false;
+  var lastLoaded = 0;     // when the list was last fetched
   var coord = false, pass = '', copiedKey = null, notice = '', busy = null, poll = null;
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
@@ -310,6 +318,7 @@
   me = lsGet('tracey_me');
 
   async function loadNeeds(){
+    lastLoaded = Date.now();
     // Whether this person can read Tracey's journal, and whether they
     // have already asked. Failure here must never block the needs list.
     if (me) {
@@ -391,6 +400,21 @@
   // stop someone signing up.
   // Lets the coordinator know someone has asked to read the journal.
   // Fire and forget, like the other notifications.
+  // Tells a friend they can read the journal, with the link. Also used
+  // to send it again later, which is why it reports whether it worked.
+  async function notifyGranted(email, name, again) {
+    try {
+      var res = await fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'access-granted', email: email, name: name, again: again === true
+        })
+      });
+      return res.ok;
+    } catch (e) { return false; }
+  }
+
   function notifyAccess(email, name) {
     try {
       fetch('/api/notify', {
@@ -585,6 +609,15 @@
         + 'is cancelled. If they were also on the Outlook invite, cancel that '
         + 'event in Outlook too so it leaves their calendar.</p>')
 
+      + q('Asking everyone to take a look',
+          '<p><strong>Ask everyone</strong> at the top emails every registered '
+        + 'friend a list of what is still open, with the link. Each one goes '
+        + 'separately, so nobody sees anyone else\u2019s address.</p>'
+        + '<p>The bar says when you last did it, because the quickest way to '
+        + 'make people stop reading these is to send two in a morning. Once a '
+        + 'week, or when something genuinely needs covering, is about right.</p>'
+        + '<p>It only appears when something is actually open.</p>')
+
       + q('Finding something that already happened',
           '<p>The panel shows what is still ahead, so it stays usable. Tap '
         + '<strong>Show past</strong> at the top to include everything that has '
@@ -753,6 +786,29 @@
       +   '<span>One tap to see what Tracey needs.</span></span>'
       + '<button class="x" data-action="hideadd" aria-label="Dismiss">\u00d7</button>'
       + '</div>';
+  }
+
+  function todayStr() {
+    var d = new Date();
+    return d.getFullYear() + '-'
+      + String(d.getMonth() + 1).padStart(2, '0') + '-'
+      + String(d.getDate()).padStart(2, '0');
+  }
+
+  // "yesterday" reads better than a timestamp when the question is
+  // really "have I already pestered everyone this morning?"
+  function agoWords(iso) {
+    try {
+      var then = new Date(iso);
+      var hours = (Date.now() - then.getTime()) / 3600000;
+      if (hours < 1) return 'less than an hour ago';
+      if (hours < 24) return Math.round(hours) + ' hours ago';
+      var days = Math.round(hours / 24);
+      if (days === 1) return 'yesterday';
+      if (days < 14) return days + ' days ago';
+      return 'on ' + then.toLocaleDateString(undefined,
+        { month: 'short', day: 'numeric' });
+    } catch (e) { return 'recently'; }
   }
 
   function pairLine(n) {
@@ -933,12 +989,17 @@
             + ' data-level="' + level + '"'
             + (lvl === level ? ' class="on"' : '') + '>' + label + '</button>';
         }
+        var reading = lvl === 'approved' || lvl === 'close';
         return '<div class="tierrow">'
           + '<div class="who"><strong>' + esc(p.name) + '</strong>'
           +   '<div class="em">' + esc(p.email)
           +   (p.phone ? ' \u00b7 ' + esc(p.phone) : '') + '</div></div>'
           + '<div class="tierbtns">'
           +   b('none', 'No') + b('approved', 'Updates') + b('close', 'Close')
+          +   (reading
+                ? '<button data-action="resend" data-email="' + esc(p.email) + '"'
+                  + ' data-name="' + esc(p.name) + '">Email link</button>'
+                : '')
           + '</div></div>';
       }
 
@@ -976,8 +1037,25 @@
         + '</span><button data-action="togglepast">'
         + (showPast ? 'Hide past' : 'Show past') + '</button></div>';
 
+      // Asking everyone is the only thing here that reaches the whole
+      // circle at once, so it says when it last went out.
+      var stillOpen = all.filter(function(n){
+        return n.status === 'OPEN' && n.date >= todayStr(); }).length;
+      var lastSent = coordData.last_broadcast || '';
+      var askBar = '<div class="askbar"><span>'
+        + (stillOpen
+            ? stillOpen + (stillOpen === 1 ? ' thing is' : ' things are') + ' still open. '
+              + (lastSent ? 'Last asked ' + agoWords(lastSent) + '.' : 'Nobody has been asked yet.')
+            : 'Everything is covered.')
+        + '</span>'
+        + (stillOpen
+            ? '<button data-action="askall">Ask everyone</button>'
+            : '')
+        + '</div>';
+
       content.innerHTML = banner
         + (showHelp ? helpPanel() : '')
+        + askBar
         + pastBar
         + '<div class="section-title">Needs an invite</div>'
         + '<div class="section-sub">' + (pend.length ? 'Add these attendees to the event on the Tracey Recovery calendar, then send the update.' : '') + '</div>'
@@ -1095,6 +1173,52 @@
       + '<div class="section-title">Already covered</div>'
       + (cov.length ? cov.map(row).join('') : '<div class="empty">Nothing covered yet.</div>');
   }
+
+  // Added to a home screen, iOS keeps the page frozen in memory rather
+  // than reloading it. Someone reopening the app days later would see
+  // whatever was on screen when they last closed it — a list that may
+  // be entirely out of date.
+  //
+  // Claiming is guarded at the database, so stale data cannot actually
+  // double-book anything. But being shown an old list and then told no
+  // is a poor way to find out.
+  async function refreshIfStale() {
+    if (document.visibilityState !== 'visible') return;
+    // A quick switch to another app and back does not need a round trip.
+    if (Date.now() - lastLoaded < 45000) return;
+    // Nor should the list move while a question is on screen.
+    if (document.querySelector('.ask-bg')) return;
+    if (!me) return;
+    lastLoaded = Date.now();
+    try {
+      if (coord) { await loadCoord(); } else { await loadNeeds(); }
+    } catch (e) { /* offline: leave what is on screen */ }
+  }
+
+  // Between them these cover every way a page comes back:
+  //   visibilitychange  app switcher, tab switch, screen unlock (iOS + Android)
+  //   pageshow          restored from cache rather than loaded
+  //   focus             window refocused on a laptop
+  //   resume            older Android webviews
+  document.addEventListener('visibilitychange', refreshIfStale);
+  window.addEventListener('pageshow', function (e) {
+    // persisted means it came back from the cache rather than loading.
+    if (e.persisted) { lastLoaded = 0; refreshIfStale(); }
+  });
+  window.addEventListener('focus', refreshIfStale);
+  document.addEventListener('resume', refreshIfStale);
+
+  // A tab left open and watched — someone who opens this in the morning
+  // and glances back after lunch — never fires any of the events above.
+  // A quiet check every three minutes keeps that honest.
+  //
+  // Skipped while a dialog is open, so the page cannot rearrange itself
+  // underneath someone who is part way through answering a question.
+  setInterval(function () {
+    if (document.visibilityState !== 'visible') return;
+    if (document.querySelector('.ask-bg')) return;
+    refreshIfStale();
+  }, 180000);
 
   // Android fires this when the browser would have offered installation.
   // Holding on to it lets the card trigger the real dialog. Safari never
@@ -1363,6 +1487,52 @@
       return;
     }
 
+    if (a === 'askall') {
+      var howMany = (coordData.volunteers || []).length;
+      var openNow = (coordData.needs || []).filter(function(n){
+        return n.status === 'OPEN' && n.date >= todayStr(); }).length;
+      var last = coordData.last_broadcast || '';
+
+      var go = await askYesNo(
+        'Email all ' + howMany + (howMany === 1 ? ' friend?' : ' friends?'),
+        'Each of them gets a list of the ' + openNow
+          + (openNow === 1 ? ' thing' : ' things') + ' still open, with the link. '
+          + (last ? 'You last did this ' + agoWords(last) + '. ' : '')
+          + 'Nobody sees anyone else\u2019s address.',
+        'Yes, ask everyone',
+        'Not now');
+      if (!go) return;
+
+      el.disabled = true;
+      el.textContent = 'Sending\u2026';
+
+      var result = null;
+      try {
+        var res = await fetch('/api/ask-everyone', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pass: pass })
+        });
+        result = res.ok ? await res.json() : null;
+      } catch (err) { result = null; }
+
+      el.disabled = false;
+      el.textContent = 'Ask everyone';
+
+      if (!result) {
+        notice = 'Could not send those just now. Please try again.';
+      } else if (result.reason) {
+        notice = result.reason;
+      } else {
+        notice = 'Sent to ' + result.sent
+          + (result.sent === 1 ? ' friend' : ' friends')
+          + (result.failed && result.failed.length
+              ? '. Could not reach: ' + result.failed.join(', ') : '.');
+      }
+      await loadCoord();
+      return;
+    }
+
     if (a === 'togglepast') {
       showPast = !showPast;
       await loadCoord();
@@ -1441,13 +1611,38 @@
     if (a === 'settier') {
       var em = el.getAttribute('data-email');
       var lvl = el.getAttribute('data-level');
+
+      // What they had before, so a friend already reading is not emailed
+      // again just because you moved them between levels.
+      var before = (coordData.volunteers || []).filter(function(v){
+        return v.email === em; })[0];
+      var wasReading = before && (before.access === 'approved' || before.access === 'close');
+      var name = before ? before.name : '';
+
       el.disabled = true;
       var sr = await db.rpc('set_access', { p_pass: pass, p_email: em, p_level: lvl });
       el.disabled = false;
       if (sr.error || !sr.data || sr.data.ok !== true) {
         notice = 'Could not change that. Please try again.'; render(); return;
       }
+
+      // Newly let in: tell them. They asked, and nothing else would.
+      if (!wasReading && (lvl === 'approved' || lvl === 'close')) {
+        notifyGranted(em, name, false);
+      }
       await loadCoord();
+      return;
+    }
+
+    if (a === 'resend') {
+      var rem = el.getAttribute('data-email');
+      var rn = el.getAttribute('data-name') || '';
+      el.disabled = true;
+      el.textContent = 'Sending…';
+      var ok = await notifyGranted(rem, rn, true);
+      el.disabled = false;
+      el.textContent = ok ? 'Sent' : 'Try again';
+      setTimeout(function(){ el.textContent = 'Email link'; }, 2500);
       return;
     }
 
