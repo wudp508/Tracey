@@ -1058,7 +1058,10 @@
         + askBar
         + pastBar
         + '<div class="section-title">Needs an invite</div>'
-        + '<div class="section-sub">' + (pend.length ? 'Add these attendees to the event on the Tracey Recovery calendar, then send the update.' : '') + '</div>'
+        + '<div class="section-sub">' + (pend.length
+            ? 'Optional. Changes and cancellations reach these friends on their own \u2014 '
+              + 'adding them to the Outlook event as well means you see their RSVP.'
+            : '') + '</div>'
         + (pend.length ? pend.map(inviteCard).join('') : '<div class="empty">All caught up. Every claimed need has an invite out.</div>')
         + '<div class="section-title">Sign someone up</div>'
         + '<div class="section-sub">' + (openOnes.length ? 'For friends who phone rather than use the page. They get the same calendar invitation.' : '') + '</div>'
