@@ -367,7 +367,8 @@ export default async (request) => {
     }
   }
 
-  if (!id || (action !== 'claimed' && action !== 'released' && action !== 'cancelled')) {
+  if (!id || (action !== 'claimed' && action !== 'released'
+              && action !== 'cancelled' && action !== 'updated')) {
     return new Response('Bad request', { status: 400 });
   }
 
@@ -456,7 +457,20 @@ export default async (request) => {
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   }
 
-  if (action === 'claimed') {
+  if (action === 'updated') {
+    subject = `Changed: ${need.title}`;
+    heading = 'This changed, and the volunteer has been told';
+    lines = [
+      `<strong>${esc(need.title)}</strong>`,
+      esc(when),
+      need.location ? esc(need.location) : '',
+      '',
+      `Covered by: <strong>${esc(need.volunteer || '')}</strong>`,
+      '',
+      `<em>The updated invitation has been sent to them, so their calendar `
+        + `will show the new time. Nothing for you to do.</em>`
+    ];
+  } else if (action === 'claimed') {
     subject = `${need.volunteer || 'Someone'} signed up: ${need.title}`;
     heading = `${need.volunteer || 'Someone'} is covering this`;
     lines = [
@@ -528,8 +542,11 @@ export default async (request) => {
     console.log('Notified', action, need.title);
 
     // On a claim, forward the genuine Outlook invitation to the volunteer.
+    // Also on an update: Tracey has moved the time, and the person who
+    // signed up needs the new one. Without this they keep whatever was
+    // forwarded when they claimed, and turn up at the old time.
     let inviteResult = 'not applicable';
-    if (action === 'claimed') {
+    if (action === 'claimed' || action === 'updated') {
       try {
         const full = await fetch(`${SUPABASE_URL}/rest/v1/rpc/claim_invite`, {
           method: 'POST',
