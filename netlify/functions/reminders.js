@@ -233,7 +233,12 @@ export default async (request) => {
     covered: claimed.length,
     uncovered: open.length
   }, null, 2), {
-    status: 200, headers: { 'Content-Type': 'application/json' }
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+      'Netlify-CDN-Cache-Control': 'no-store'
+    }
   });
 };
 
