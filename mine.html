@@ -41,6 +41,24 @@
   .btn.small.on{background:var(--text);border-color:var(--text);color:#fff}
   .err{color:var(--rose);font-size:.85rem;margin:0 0 10px;min-height:1em}
   .status{color:var(--text-muted);font-size:.9rem;padding:20px 0}
+  .anytime-chip{display:inline-block;font-size:.68rem;font-weight:700;
+    letter-spacing:.05em;text-transform:uppercase;color:var(--teal);
+    background:#EDF1F0;border-radius:100px;padding:2px 8px;margin-right:6px;
+    vertical-align:middle}
+  .reqform{background:var(--card-bg);border:1px solid var(--border);
+    border-radius:11px;padding:15px;margin:0 0 20px}
+  .reqform input,.reqform textarea{width:100%;font-family:inherit;font-size:16px;
+    padding:10px 12px;border:1px solid var(--border);border-radius:8px;
+    margin-bottom:8px;background:#fff;color:var(--text)}
+  .reqform textarea{min-height:60px;resize:vertical}
+  .reqform label{display:block;font-size:.78rem;font-weight:600;
+    color:var(--text-muted);margin:2px 0 4px}
+  .reqbar{display:flex;justify-content:space-between;align-items:center;gap:10px;
+    background:var(--card-bg);border:1px solid var(--border);border-radius:9px;
+    padding:11px 13px;margin:0 0 20px;font-size:.86rem;color:var(--text)}
+  .reqbar button{font-size:.78rem;font-weight:600;padding:7px 13px;border-radius:7px;
+    border:1px solid var(--sage);background:var(--sage);color:#fff;cursor:pointer;
+    font-family:inherit;flex:0 0 auto}
   .warm{background:var(--card-bg);border:1px solid var(--sage);border-radius:11px;
     padding:15px 17px;margin:0 0 22px}
   .warm p{margin:0;font-size:.95rem;line-height:1.6;color:var(--text)}
@@ -102,6 +120,7 @@
   var db = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
 
   var pass = null, data = null, err = '';
+  var showReq = false;
 
   try { pass = sessionStorage.getItem('tracey_pass') || null; } catch (e) {}
 
@@ -175,9 +194,18 @@
                 var mine = n.status === 'FILLED';
                 return '<div class="item' + (mine ? '' : ' open') + '">'
                   + '<h4>' + esc(n.title) + '</h4>'
-                  + '<p class="meta">' + esc(n.start_time)
-                  +   (n.end_time ? '\\u2013' + esc(n.end_time) : '')
-                  +   (n.location ? ' \\u00b7 ' + esc(n.location) : '') + '<br>'
+                  + '<p class="meta">'
+                  +   (n.anytime
+                        ? '<span class="anytime-chip">Anytime</span>'
+                          + (n.date && n.start_time
+                              ? esc(fmtDay(n.date)) + ', ' + esc(n.start_time)
+                              : n.date ? 'by ' + esc(fmtDay(n.date))
+                              : n.start_time ? esc(n.start_time)
+                              : 'whenever suits')
+                        : esc(n.start_time)
+                          + (n.end_time ? '–' + esc(n.end_time) : '')
+                          + (n.location ? ' · ' + esc(n.location) : ''))
+                  +   '<br>'
                   +   '<span class="who">'
                   +   (mine ? esc(n.volunteer_name) : 'Nobody yet')
                   +   '</span></p>'
@@ -224,8 +252,28 @@
         }).join('')
       : '<div class="empty">Nobody reading your updates yet.</div>';
 
+    // Something she needs that is not an appointment. She should not have
+    // to ask anyone to put a pint of milk on a list.
+    var reqBlock = showReq
+      ? '<div class="reqform">'
+        + '<label>What would help</label>'
+        + '<input type="text" id="rq-title" placeholder="Milk, bread and something for dinner" />'
+        + '<label>Anything worth knowing</label>'
+        + '<textarea id="rq-note" placeholder="The oat milk in the blue carton"></textarea>'
+        + '<label>Needed by (leave blank if it can wait)</label>'
+        + '<input type="date" id="rq-by" />'
+        + '<label>When would suit (optional)</label>'
+        + '<input type="text" id="rq-when" placeholder="Afternoon, or after I am back from rehab" />'
+        + '<div class="err" id="rq-err"></div>'
+        + '<div class="btns">'
+        +   '<button class="btn" data-act="postreq">Put it on the list</button>'
+        +   '<button class="btn small" data-act="toggreq">Cancel</button>'
+        + '</div></div>'
+      : '<div class="reqbar"><span>Need something that is not an appointment?</span>'
+        + '<button data-act="toggreq">Ask for something</button></div>';
+
     sub.textContent = 'What is coming up, and who is covering it.';
-    content.innerHTML = warm
+    content.innerHTML = reqBlock + warm
       + '<div class="section-title">The week ahead</div>'
       + '<div class="section-sub">' + (open.length
           ? open.length + (open.length === 1 ? ' thing is' : ' things are') + ' still open. Nobody expects you to sort that out.'
@@ -258,6 +306,43 @@
     var el = e.target.closest('[data-act]');
     if (!el) return;
     var act = el.getAttribute('data-act');
+
+    if (act === 'toggreq') {
+      showReq = !showReq;
+      render();
+      return;
+    }
+
+    if (act === 'postreq') {
+      var t = (document.getElementById('rq-title').value || '').trim();
+      var note = (document.getElementById('rq-note').value || '').trim();
+      var by = (document.getElementById('rq-by').value || '').trim();
+      var slot = document.getElementById('rq-err');
+      slot.textContent = '';
+
+      if (t.length < 3) {
+        slot.textContent = 'A few words about what would help.';
+        return;
+      }
+
+      el.disabled = true;
+      el.textContent = 'Posting…';
+      var qr = await db.rpc('add_request', {
+        p_title: t, p_pass: pass, p_category: 'errands',
+        p_by_when: by || null, p_instructions: note,
+        p_window: (document.getElementById('rq-when').value || '').trim()
+      });
+      el.disabled = false;
+      el.textContent = 'Put it on the list';
+
+      if (qr.error || !qr.data || qr.data.ok !== true) {
+        slot.textContent = 'Could not post that just now. Please try again.';
+        return;
+      }
+      showReq = false;
+      await load();
+      return;
+    }
 
     if (act === 'resend') {
       el.disabled = true;
@@ -301,7 +386,7 @@
   async function load() {
     if (!pass) { gate(); return; }
     content.className = 'status';
-    content.textContent = 'Loading\\u2026';
+    content.textContent = 'Loading…';
 
     var r = await db.rpc('tracey_view', { p_pass: pass });
     if (r.error) {
