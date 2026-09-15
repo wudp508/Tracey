@@ -183,7 +183,15 @@ export default async () => {
     } : null
   }, null, 2), {
     status: 200,
-    headers: { 'Content-Type': 'application/json' }
+    headers: {
+      'Content-Type': 'application/json',
+      // Never cached. A monitor that can be served from a cache is a
+      // monitor that can tell you yesterday's answer, which is worse
+      // than no monitor at all.
+      'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+      'Netlify-CDN-Cache-Control': 'no-store',
+      'Pragma': 'no-cache'
+    }
   });
 };
 
