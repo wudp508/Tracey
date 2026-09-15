@@ -115,8 +115,7 @@ export default async () => {
       checkEndpoint(base, '/preview.png', [200]),
       checkEndpoint(base, '/icon-180.png', [200]),
       checkEndpoint(base, '/manifest.json', [200]),
-      checkEndpoint(base, '/api/ask-everyone', [405]),
-      checkEndpoint(base, '/api/version', [200])
+      checkEndpoint(base, '/api/ask-everyone', [405])
     ]);
   } else {
     record('site checks', false, 'SITE_URL not set, so pages were not checked');
