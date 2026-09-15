@@ -75,7 +75,7 @@ function addAttendee(ics, email, name) {
 // show its Yes / Maybe / No card instead of a paperclip. Brevo's HTTP
 // API cannot express that, so this goes over SMTP where we control the
 // message structure.
-async function sendInvite(env, need) {
+async function sendInvite(env, need, why) {
   const ics = addAttendee(need.ics, need.email, need.volunteer);
   if (!ics) {
     return 'no stored invitation for this need';
@@ -90,23 +90,31 @@ async function sendInvite(env, need) {
   const html = `
     <div style="font-family:-apple-system,Segoe UI,sans-serif;font-size:15px;
                 line-height:1.55;color:#2B2321;max-width:480px">
-      <p style="font-size:17px;font-weight:600;margin:0 0 14px">Thank you for signing up</p>
+      <p style="font-size:17px;font-weight:600;margin:0 0 14px">${
+        why === 'updated' ? 'This has changed' : 'Thank you for signing up'}</p>
       <p style="margin:0 0 14px">
         <strong>${esc(need.title)}</strong><br>
         ${esc(when)}
         ${need.location ? '<br>' + esc(need.location) : ''}
       </p>
       ${need.instructions ? `<p style="margin:0 0 14px">${esc(need.instructions)}</p>` : ''}
-      <p style="margin:0 0 14px">This should appear on your calendar automatically.
-      If the time or place changes you will get an update, so there is nothing
-      to keep track of.</p>
-      <p style="margin:0 0 14px">If something comes up and you cannot make it,
-      free up the slot on the page and someone else can take it.</p>
+      ${why === 'updated'
+        ? `<p style="margin:0 0 14px">Tracey has changed this one. The details
+           above are the new ones, and your calendar should update on its
+           own.</p>
+           <p style="margin:0 0 14px"><strong>If the new time does not work for
+           you, please free up the slot on the page.</strong> Someone else can
+           then take it, and nobody is left assuming it is covered.</p>`
+        : `<p style="margin:0 0 14px">This should appear on your calendar
+           automatically. If the time or place changes you will get an update,
+           so there is nothing to keep track of.</p>
+           <p style="margin:0 0 14px">If something comes up and you cannot make
+           it, free up the slot on the page and someone else can take it.</p>`}
       ${env.SITE_URL ? `<p style="margin:18px 0 0"><a href="${env.SITE_URL}" style="color:#3D5A5B">Open the signup page</a></p>` : ''}
     </div>`;
 
   const text = [
-    'Thank you for signing up',
+    why === 'updated' ? 'This has changed' : 'Thank you for signing up',
     '',
     need.title,
     when,
@@ -114,7 +122,9 @@ async function sendInvite(env, need) {
     '',
     need.instructions || '',
     '',
-    'This should appear on your calendar automatically.',
+    why === 'updated'
+      ? 'If the new time does not work for you, please free up the slot on the page.'
+      : 'This should appear on your calendar automatically.',
     env.SITE_URL || ''
   ].filter(Boolean).join('\n');
 
@@ -130,7 +140,7 @@ async function sendInvite(env, need) {
       from: { name: 'For Tracey', address: env.NOTIFY_FROM },
       to: need.volunteer ? `"${need.volunteer}" <${need.email}>` : need.email,
       replyTo: env.NOTIFY_FROM,
-      subject: `${need.title} — ${when}`,
+      subject: (why === 'updated' ? 'Changed: ' : '') + `${need.title} — ${when}`,
       text: text,
       html: html,
       // Inline calendar part. alternatives places it beside the html body
@@ -564,7 +574,7 @@ export default async (request) => {
               NOTIFY_FROM, SITE_URL,
               SMTP_LOGIN: process.env.SMTP_LOGIN,
               SMTP_KEY:   process.env.SMTP_KEY
-            }, detail);
+            }, detail, action);
           } else {
             inviteResult = 'no volunteer email on record';
           }
