@@ -287,6 +287,95 @@ function collectExdates(lines) {
   return out;
 }
 
+
+// ---------- a request that is not an appointment ----------
+
+// Only these people can post one by email. A From header can be forged,
+// so this is a courtesy lock rather than a real one — the consequence of
+// a forged request is a spurious item a coordinator can remove, which is
+// proportionate to the effort of forging it.
+function senderAllowed(payload) {
+  const allow = (process.env.REQUEST_SENDERS || process.env.NOTIFY_TO || '')
+    .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+  if (!allow.length) return false;
+
+  const headers = payload.headers || {};
+  const raw = String(payload.from || headers.From || headers.from || '')
+    .toLowerCase();
+  const match = raw.match(/[\w.+-]+@[\w.-]+\.\w+/);
+  return !!(match && allow.includes(match[0]));
+}
+
+// "#ask Milk and bread" or "Milk and bread #ask". The tag is what
+// separates a request from any other stray message reaching this
+// address — an autoreply should not become a need.
+async function maybeRequest(payload) {
+  const headers = payload.headers || {};
+  let subject = String(payload.subject || headers.Subject || headers.subject || '');
+  if (!/#ask\b/i.test(subject)) return null;
+  if (!senderAllowed(payload)) {
+    console.log('Request tag from an address that is not allowed; ignoring');
+    return new Response('Not allowed', { status: 200 });
+  }
+
+  const title = subject.replace(/#ask\b/ig, '').replace(/\s{2,}/g, ' ').trim();
+  if (!title) return new Response('No description', { status: 200 });
+
+  // A date anywhere in the subject becomes the by-when. Without one the
+  // request simply stays up until somebody does it.
+  let byWhen = null;
+  const d = title.match(/\bby\s+(\d{4})-(\d{2})-(\d{2})\b/i);
+  if (d) byWhen = `${d[1]}-${d[2]}-${d[3]}`;
+
+  // "#ask Milk by 2026-09-18 afternoon" — anything after the date is the
+  // window, in her own words.
+  let window_ = '';
+  if (d) {
+    const after = title.slice(title.indexOf(d[0]) + d[0].length).trim();
+    if (after) window_ = after.slice(0, 60);
+  }
+
+  const body = String(payload.plain || payload.text || payload.body || '')
+    .split(/\n-{2,}\s*\n|\nSent from my /i)[0]
+    .trim()
+    .slice(0, 800);
+
+  const { SUPABASE_URL, SUPABASE_KEY, INGEST_TOKEN } = process.env;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/add_request`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      },
+      body: JSON.stringify({
+        p_token: INGEST_TOKEN,
+        p_title: d
+          ? title.slice(0, title.indexOf(d[0])).trim() || title.replace(d[0], '').trim()
+          : title,
+        p_category: 'errands',
+        p_by_when: byWhen,
+        p_instructions: body,
+        p_window: window_
+      })
+    });
+    const out = await res.text();
+    if (!res.ok) {
+      console.error('Request rejected:', res.status, out);
+      return new Response(JSON.stringify({ error: 'rejected', detail: out.slice(0, 300) }),
+        { status: 502, headers: { 'Content-Type': 'application/json' } });
+    }
+    console.log('Request posted by email:', title);
+    return new Response(out, {
+      status: 200, headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (e) {
+    console.error('Could not post the request', e);
+    return new Response('Upstream unreachable', { status: 502 });
+  }
+}
+
 // ---------- finding the calendar part in the email --------------------
 
 // Walks the entire payload looking for anything that contains an
@@ -405,7 +494,16 @@ export default async (request) => {
 
   const icsText = findCalendarText(payload);
   if (!icsText) {
-    // Not a calendar invite. Accept it so the sender does not get a bounce.
+    // Not an invitation. It may still be a request: "could someone pick
+    // up milk this week" is not a calendar event and should not have to
+    // be forced into one.
+    //
+    // This address is reused rather than adding a third, because Tracey
+    // already has it saved as a contact and remembering another one for
+    // groceries would be worse than useless.
+    const asked = await maybeRequest(payload);
+    if (asked) return asked;
+
     console.log('No calendar part found; ignoring message');
     return new Response('No calendar content', { status: 200 });
   }
@@ -436,6 +534,57 @@ export default async (request) => {
   const icsStatus = statusProp ? String(statusProp.value).trim().toUpperCase() : '';
   const effectiveMethod = (method === 'CANCEL' || icsStatus === 'CANCELLED')
     ? 'CANCEL' : 'REQUEST';
+
+  // ---------- cancellation, before anything else is considered ----------
+  //
+  // One event can have produced needs under several ids: the bare uid,
+  // one per occurrence of a series, one per leg of a round trip, or
+  // both. Routing a cancellation by shape meant reading the tag or the
+  // repeat rule off the cancellation message — and Outlook strips both,
+  // so we would go looking for a uid that was never stored.
+  //
+  // Now the uid is all that is needed. Everything derived from it goes,
+  // whatever shape it took.
+  if (effectiveMethod === 'CANCEL') {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/cancel_anything`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`
+        },
+        body: JSON.stringify({ p_token: INGEST_TOKEN, p_uid: uid })
+      });
+      const txt = await res.text();
+      if (!res.ok) {
+        console.error('Cancellation rejected:', res.status, txt);
+        return new Response(JSON.stringify({
+          error: 'database rejected the cancellation',
+          status: res.status, detail: txt.slice(0, 300), uid: uid.slice(0, 60)
+        }), { status: 502, headers: { 'Content-Type': 'application/json' } });
+      }
+
+      // Anybody who had signed up is told directly. Nothing else would
+      // tell them, and the first they would know is turning up.
+      try {
+        const outcome = JSON.parse(txt);
+        const covering = (outcome && outcome.was_covering) || [];
+        const site = (process.env.SITE_URL || '').replace(/\/+$/, '');
+        if (site && covering.length) {
+          console.log('Telling', covering.length, 'volunteer(s) it is cancelled');
+        }
+      } catch (e) { /* the cancellation stands either way */ }
+
+      console.log('Cancelled everything under', uid.slice(0, 50), txt);
+      return new Response(txt, {
+        status: 200, headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (e) {
+      console.error('Could not reach the database to cancel', e);
+      return new Response('Upstream unreachable', { status: 502 });
+    }
+  }
 
   const summary = unescapeText(getProp(lines, 'SUMMARY')?.value);
   const location = unescapeText(getProp(lines, 'LOCATION')?.value);
@@ -475,29 +624,6 @@ export default async (request) => {
     const dates = (ruleProp && !recurIdProp)
       ? (expandRecurrence(ruleProp.value, start.date, collectExdates(lines)) || [start.date])
       : [start.date];
-
-    if (effectiveMethod === 'CANCEL') {
-      const bases = dates.map(d => (ruleProp ? uid + '::' + d.replace(/-/g, '') : effectiveUid));
-      let total = 0;
-      for (const base of bases) {
-        try {
-          const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/cancel_pair`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': SUPABASE_KEY,
-              'Authorization': `Bearer ${SUPABASE_KEY}`
-            },
-            body: JSON.stringify({ p_token: INGEST_TOKEN, p_base_uid: base })
-          });
-          if (res.ok) total++;
-        } catch (e) { console.error('Could not cancel a pair', e); }
-      }
-      console.log('Cancelled round trips:', total);
-      return new Response(JSON.stringify({ action: 'pairs_cancelled', count: total }), {
-        status: 200, headers: { 'Content-Type': 'application/json' }
-      });
-    }
 
     let made = 0;
     const problems = [];
@@ -548,29 +674,6 @@ export default async (request) => {
 
   // ---------- the whole series ----------
   if (ruleProp && !recurIdProp) {
-    if (effectiveMethod === 'CANCEL') {
-      try {
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/cancel_series`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': SUPABASE_KEY,
-            'Authorization': `Bearer ${SUPABASE_KEY}`
-          },
-          body: JSON.stringify({ p_token: INGEST_TOKEN, p_base_uid: uid })
-        });
-        const txt = await res.text();
-        console.log('Cancelled series', uid.slice(0, 40), txt);
-        return new Response(txt, {
-          status: res.ok ? 200 : 502,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      } catch (e) {
-        console.error('Could not cancel the series', e);
-        return new Response('Upstream unreachable', { status: 502 });
-      }
-    }
-
     const dates = expandRecurrence(
       ruleProp.value, start.date, collectExdates(lines));
 
