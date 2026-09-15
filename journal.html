@@ -243,6 +243,33 @@
     showPosts(r.data || []);
   }
 
+  // Reopened from a home screen icon, iOS may show this page exactly as
+  // it was left rather than loading it again. Fetch afresh when it comes
+  // back after a while.
+  var lastLoaded = 0;
+  function refreshIfStale() {
+    if (document.visibilityState !== 'visible') return;
+    if (Date.now() - lastLoaded < 45000) return;
+    lastLoaded = Date.now();
+    load();
+  }
+  // Between them these cover every way a page comes back:
+  //   visibilitychange  app switcher, tab switch, screen unlock (iOS + Android)
+  //   pageshow          restored from cache rather than loaded
+  //   focus             window refocused on a laptop
+  //   resume            older Android webviews
+  document.addEventListener('visibilitychange', refreshIfStale);
+  window.addEventListener('pageshow', function (e) {
+    if (e.persisted) { lastLoaded = 0; refreshIfStale(); }
+  });
+  window.addEventListener('focus', refreshIfStale);
+  document.addEventListener('resume', refreshIfStale);
+  // A tab left open and watched fires none of the events above.
+  setInterval(function () {
+    if (document.visibilityState === 'visible') refreshIfStale();
+  }, 180000);
+
+  lastLoaded = Date.now();
   load();
 })();
 </script>
