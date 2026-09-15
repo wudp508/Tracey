@@ -108,6 +108,18 @@
   .newtag{display:inline-block;font-size:.66rem;font-weight:700;letter-spacing:.06em;
     text-transform:uppercase;color:#fff;background:var(--clay);border-radius:100px;
     padding:2px 7px;margin-left:7px;vertical-align:middle}
+  .anytime-chip{display:inline-block;font-size:.68rem;font-weight:700;
+    letter-spacing:.05em;text-transform:uppercase;color:var(--teal);
+    background:#EDF1F0;border-radius:100px;padding:2px 8px;margin-right:6px;
+    vertical-align:middle}
+  .reqform{background:var(--card-bg);border:1px solid var(--border);
+    border-radius:11px;padding:14px;margin:0 0 18px}
+  .reqform input,.reqform textarea{width:100%;font-family:inherit;
+    font-size:16px;padding:10px 12px;border:1px solid var(--border);
+    border-radius:8px;margin-bottom:8px;background:#fff;color:var(--text)}
+  .reqform textarea{min-height:60px;resize:vertical}
+  .reqform label{display:block;font-size:.78rem;font-weight:600;
+    color:var(--text-muted);margin:2px 0 4px}
   .askbar{display:flex;justify-content:space-between;align-items:center;gap:10px;
     background:var(--card-bg);border:1px solid var(--border);border-radius:9px;
     padding:10px 13px;margin:0 0 18px;font-size:.83rem;color:var(--text-muted)}
@@ -300,6 +312,7 @@
   var posts = null;    // Tracey's journal, coordinator view only
   var showHelp = false;
   var showPast = false;   // coordinator view: include finished needs
+  var showReq = false;    // the ask-for-something form
   var showAll = false;    // friend view: beyond the next fortnight
   var newIds = null;      // ids that were new on arrival, held for the visit
   var installEvt = null;  // Android only; iOS never fires this
@@ -609,6 +622,25 @@
         + 'is cancelled. If they were also on the Outlook invite, cancel that '
         + 'event in Outlook too so it leaves their calendar.</p>')
 
+      + q('Something that is not an appointment',
+          '<p>A pint of milk does not belong on a calendar. Use '
+        + '<strong>Ask for something</strong> at the top: a description, '
+        + 'anything worth knowing, and a by-when if it matters. Leave the date '
+        + 'blank and it stays up until somebody does it.</p>'
+        + '<p>Tracey can post these herself from her own page, so she does not '
+        + 'have to ask anyone to add a loaf of bread to a list.</p>'
+        + '<p>A day and a loose window both work: pick a date, and say when '
+        + 'would suit in your own words \u2014 <em>afternoon</em>, '
+        + '<em>before three</em>, <em>after she is back from rehab</em>. '
+        + 'Friends see exactly that, rather than a time nobody promised.</p>'
+        + '<p>Either of you can also email it to the signup address with '
+        + '<code>#ask</code> in the subject \u2014 the subject becomes the '
+        + 'request and the body becomes the notes. Add '
+        + '<code>by 2026-09-18 afternoon</code> for a day and a window.</p>'
+        + '<p>Friends see these marked <strong>Anytime</strong> rather than with '
+        + 'a time, sorted to the top, and no calendar invitation is sent because '
+        + 'there is nothing to put on a calendar.</p>')
+
       + q('Asking everyone to take a look',
           '<p><strong>Ask everyone</strong> at the top emails every registered '
         + 'friend a list of what is still open, with the link. Each one goes '
@@ -811,6 +843,18 @@
     } catch (e) { return 'recently'; }
   }
 
+  // How an untimed request describes itself. A day, a loose window, both
+  // or neither — whatever Tracey actually said, rather than a fabricated
+  // precision she did not ask for.
+  function anytimeWhen(n) {
+    var day = n.date ? fmtL(n.date) : '';
+    var win = String(n.start_time || '').trim();
+    if (day && win) return esc(day) + ', ' + esc(win);
+    if (day) return 'by ' + esc(day);
+    if (win) return esc(win);
+    return 'whenever suits you';
+  }
+
   function pairLine(n) {
     if (!n.partner_id) return '';
 
@@ -891,7 +935,11 @@
   function inviteCard(n){
     var c = function(k){ return copiedKey===k ? '<span class="copied">Copied</span>' : ''; };
     return '<div class="invite"><h4>'+esc(n.title)+' — '+esc(first(n.volunteer_name))+'</h4>'
-      + '<p class="meta">'+fmtL(n.date)+', '+esc(n.start_time)+'–'+esc(n.end_time)+'</p>'
+      + '<p class="meta">'
+      +   (n.anytime
+            ? '<span class="anytime-chip">Anytime</span>' + anytimeWhen(n)
+            : fmtL(n.date)+', '+esc(n.start_time)+'–'+esc(n.end_time))
+      + '</p>'
       + '<div class="field"><label>Add as attendee'+c('e'+n.id)+'</label>'
       + '<input class="copyline" readonly value="'+esc(n.volunteer_email)+'" data-action="copy" data-key="e'+n.id+'" data-copy="'+esc(n.volunteer_email)+'" /></div>'
       + '<div class="field"><label>Event body'+c('b'+n.id)+'</label>'
@@ -1054,8 +1102,30 @@
             : '')
         + '</div>';
 
+      // Something Tracey needs that is not an appointment. No time, no
+      // invitation, no Outlook — it simply sits on the list until
+      // somebody picks it up.
+      var reqForm = showReq
+        ? '<div class="reqform">'
+          + '<label>What is needed</label>'
+          + '<input type="text" id="rq-title" placeholder="Milk, bread and something for dinner" />'
+          + '<label>Anything else worth knowing</label>'
+          + '<textarea id="rq-note" placeholder="She likes the oat milk in the blue carton"></textarea>'
+          + '<label>Needed by (leave blank if it can wait)</label>'
+          + '<input type="date" id="rq-by" />'
+          + '<label>When would suit (optional)</label>'
+          + '<input type="text" id="rq-when" placeholder="Thursday afternoon, or after rehab" />'
+          + '<div class="field-err" id="rq-err"></div>'
+          + '<div class="postbtns">'
+          +   '<button class="btn primary small" data-action="postreq">Put it on the list</button>'
+          +   '<button data-action="toggreq">Cancel</button>'
+          + '</div></div>'
+        : '<div class="askbar"><span>Something needed that is not an appointment?</span>'
+          + '<button data-action="toggreq">Ask for something</button></div>';
+
       content.innerHTML = banner
         + (showHelp ? helpPanel() : '')
+        + reqForm
         + askBar
         + pastBar
         + '<div class="section-title">Needs an invite</div>'
@@ -1491,6 +1561,45 @@
     if (a === 'showall') {
       showAll = !showAll;
       render();
+      return;
+    }
+
+    if (a === 'toggreq') {
+      showReq = !showReq;
+      render();
+      return;
+    }
+
+    if (a === 'postreq') {
+      var t = (document.getElementById('rq-title').value || '').trim();
+      var note = (document.getElementById('rq-note').value || '').trim();
+      var by = (document.getElementById('rq-by').value || '').trim();
+      var errSlot = document.getElementById('rq-err');
+      errSlot.textContent = '';
+
+      if (t.length < 3) {
+        errSlot.textContent = 'A few words about what is needed.';
+        return;
+      }
+
+      el.disabled = true;
+      el.textContent = 'Posting…';
+      var qr = await db.rpc('add_request', {
+        p_title: t, p_pass: pass, p_category: 'errands',
+        p_by_when: by || null, p_instructions: note,
+        p_window: (document.getElementById('rq-when').value || '').trim()
+      });
+      el.disabled = false;
+      el.textContent = 'Put it on the list';
+
+      if (qr.error || !qr.data || qr.data.ok !== true) {
+        errSlot.textContent = (qr.data && qr.data.reason)
+          ? qr.data.reason : 'Could not post that. Please try again.';
+        return;
+      }
+      showReq = false;
+      notice = 'Added. Friends will see it as something they can do anytime.';
+      await loadCoord();
       return;
     }
 
