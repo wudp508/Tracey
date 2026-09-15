@@ -218,6 +218,8 @@
             +   '<button class="btn small' + (p.access === 'approved' ? ' on' : '') + '" data-act="set" data-email="' + esc(p.email) + '" data-level="approved">Updates</button>'
             +   '<button class="btn small' + (p.access === 'close' ? ' on' : '') + '" data-act="set" data-email="' + esc(p.email) + '" data-level="close">Closer</button>'
             +   '<button class="btn small" data-act="set" data-email="' + esc(p.email) + '" data-level="none">Stop</button>'
+            +   '<button class="btn small" data-act="resend" data-email="' + esc(p.email) + '"'
+            +     ' data-name="' + esc(p.name) + '">Email link</button>'
             + '</div></div>';
         }).join('')
       : '<div class="empty">Nobody reading your updates yet.</div>';
@@ -237,21 +239,61 @@
   }
 
   // ---------- actions ----------
+  // Tells a friend they can read, with the link. Without it they would
+  // only find out by opening the page and noticing the button changed.
+  async function tellThem(email, name, again) {
+    try {
+      var res = await fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'access-granted', email: email, name: name, again: again === true
+        })
+      });
+      return res.ok;
+    } catch (e) { return false; }
+  }
+
   document.addEventListener('click', async function(e){
     var el = e.target.closest('[data-act]');
     if (!el) return;
-    if (el.getAttribute('data-act') !== 'set') return;
+    var act = el.getAttribute('data-act');
+
+    if (act === 'resend') {
+      el.disabled = true;
+      var was = el.textContent;
+      el.textContent = 'Sending…';
+      var ok = await tellThem(el.getAttribute('data-email'),
+                              el.getAttribute('data-name') || '', true);
+      el.disabled = false;
+      el.textContent = ok ? 'Sent' : 'Try again';
+      setTimeout(function(){ el.textContent = was; }, 2500);
+      return;
+    }
+
+    if (act !== 'set') return;
+
+    var em = el.getAttribute('data-email');
+    var lvl = el.getAttribute('data-level');
+
+    // Whether they were already reading, so moving someone between
+    // levels does not email them all over again.
+    var all = (data.pending || []).concat(data.readers || []);
+    var before = all.filter(function(p){ return p.email === em; })[0];
+    var wasReading = before && (before.access === 'approved' || before.access === 'close');
 
     el.disabled = true;
     var r = await db.rpc('tracey_set_access', {
-      p_pass: pass,
-      p_email: el.getAttribute('data-email'),
-      p_level: el.getAttribute('data-level')
+      p_pass: pass, p_email: em, p_level: lvl
     });
     el.disabled = false;
     if (r.error || !r.data || r.data.ok !== true) {
       window.alert('Could not change that just now. Please try again.');
       return;
+    }
+
+    if (!wasReading && (lvl === 'approved' || lvl === 'close')) {
+      tellThem(em, before ? before.name : '', false);
     }
     await load();
   });
@@ -274,6 +316,33 @@
     render();
   }
 
+  // Reopened from a home screen icon, iOS may show this page exactly as
+  // it was left rather than loading it again. Fetch afresh when it comes
+  // back after a while.
+  var lastLoaded = 0;
+  function refreshIfStale() {
+    if (document.visibilityState !== 'visible') return;
+    if (Date.now() - lastLoaded < 45000) return;
+    lastLoaded = Date.now();
+    load();
+  }
+  // Between them these cover every way a page comes back:
+  //   visibilitychange  app switcher, tab switch, screen unlock (iOS + Android)
+  //   pageshow          restored from cache rather than loaded
+  //   focus             window refocused on a laptop
+  //   resume            older Android webviews
+  document.addEventListener('visibilitychange', refreshIfStale);
+  window.addEventListener('pageshow', function (e) {
+    if (e.persisted) { lastLoaded = 0; refreshIfStale(); }
+  });
+  window.addEventListener('focus', refreshIfStale);
+  document.addEventListener('resume', refreshIfStale);
+  // A tab left open and watched fires none of the events above.
+  setInterval(function () {
+    if (document.visibilityState === 'visible') refreshIfStale();
+  }, 180000);
+
+  lastLoaded = Date.now();
   load();
 })();
 </script>
