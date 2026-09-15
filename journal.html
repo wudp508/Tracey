@@ -3,31 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>For Tracey</title>
-<meta name="description" content="Pick anything you can take. Everyone sees the same list, so nothing gets doubled up." />
-
-<!-- Link preview. iMessage, WhatsApp, Slack and Facebook read these; the
-     absolute URL on og:image matters, relative paths are ignored by most
-     of them.
-
-     og:url is deliberately absent. Some scrapers treat it as canonical
-     and cache the preview against it, which would defeat adding ?v=2 to
-     the link to force a fresh card. Without it, each distinct URL gets
-     its own preview. -->
-<meta property="og:type" content="website" />
-<meta property="og:title" content="For Tracey" />
-<meta property="og:description" content="Rides, walks, Izzy, errands — take whatever fits your week. Everyone sees the same list, so nothing gets doubled up." />
-<meta property="og:image" content="https://tracey-humphreys-help-her-recover.netlify.app/preview.png" />
-<meta property="og:image:width" content="1200" />
-<meta property="og:image:height" content="630" />
-<meta property="og:site_name" content="For Tracey" />
-
-<meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="For Tracey" />
-<meta name="twitter:description" content="Rides, walks, Izzy, errands — take whatever fits your week." />
-<meta name="twitter:image" content="https://tracey-humphreys-help-her-recover.netlify.app/preview.png" />
-
-<meta name="theme-color" content="#F7F5F0" />
+<title>Tracey's journey</title>
   <!-- Added to a home screen, this becomes the icon and the label.
        Without them iOS uses a screenshot of the page and the full title. -->
   <link rel="apple-touch-icon" href="/icon-180.png" />
@@ -40,230 +16,62 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<!-- Deliberately kept out of search results. The page is only reachable
+     with the link and only readable once approved, but there is no
+     reason for it to be indexed at all. -->
+<meta name="robots" content="noindex, nofollow" />
 <style>
   :root{
     --bg:#F7F5F0; --card-bg:#FFF; --text:#2B2321; --text-muted:#6E6558; --border:#E4DFD3;
-    --sage:#6B7F5E; --teal:#3D5A5B; --ochre:#B8863B; --rose:#B5696A; --gold:#C9A227;
-    --clay:#A85C32; --slate:#5B7C99; --plum:#7A5C7E; --grey:#8A8578;
+    --sage:#6B7F5E; --teal:#3D5A5B; --clay:#A85C32; --rose:#B5696A; --grey:#8A8578;
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;
        -webkit-font-smoothing:antialiased}
-  .app{max-width:640px;margin:0 auto;padding:26px 18px 56px}
-  .topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
-  h1{font-family:'Fraunces',serif;font-weight:600;font-size:1.9rem;margin:0 0 6px;letter-spacing:-.01em}
-  .sub{margin:0 0 18px;color:var(--text-muted);font-size:.93rem;line-height:1.5;max-width:46ch}
-  .welcome{background:var(--card-bg);border:1px solid var(--border);border-radius:12px;
-    padding:16px 18px;margin:0 0 22px;max-width:52ch}
-  .welcome p{margin:0 0 11px;font-size:.93rem;line-height:1.6;color:var(--text)}
-  .welcome p:last-child{margin-bottom:0;color:var(--text-muted)}
-  .modetoggle{flex:0 0 auto;font-size:.76rem;font-weight:600;border:1px solid var(--border);
-    background:var(--card-bg);color:var(--text-muted);border-radius:100px;padding:6px 12px;
-    cursor:pointer;font-family:inherit}
-  .modetoggle.on{background:var(--text);color:#fff;border-color:var(--text)}
-  .me{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--card-bg);
-    border:1px solid var(--border);border-radius:9px;padding:10px 12px;margin-bottom:18px;font-size:.85rem}
-  .me span{color:var(--text-muted)} .me strong{color:var(--text);font-weight:600}
-  .gate{background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:18px}
-  .gate h2{font-family:'Fraunces',serif;font-size:1.2rem;font-weight:500;margin:0 0 6px}
-  .gate p{color:var(--text-muted);font-size:.88rem;line-height:1.5;margin:0 0 14px}
-  .chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:20px;scrollbar-width:none}
-  .chips::-webkit-scrollbar{display:none}
-  .chip{flex:0 0 auto;border:1px solid var(--border);background:var(--card-bg);color:var(--text);
-    font-family:inherit;font-size:.81rem;font-weight:500;padding:7px 13px;border-radius:100px;
-    cursor:pointer;white-space:nowrap}
-  .chip.active{background:var(--text);border-color:var(--text);color:#fff}
-  .section-title{font-family:'Fraunces',serif;font-size:1.12rem;font-weight:500;margin:28px 0 4px}
-  .section-sub{color:var(--text-muted);font-size:.84rem;margin:0 0 12px;line-height:1.45}
-  .empty{color:var(--text-muted);font-size:.89rem;padding:14px 0;border-top:1px solid var(--border)}
-  .row{display:flex;gap:13px;padding:16px 2px 16px 14px;border-top:1px solid var(--border);position:relative}
-  .row::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:4px;border-radius:2px;
-    background:var(--cat-color,var(--grey))}
-  .row.filled{opacity:.88} .row.mine::before{width:6px}
-  .when{flex:0 0 84px;font-family:'Fraunces',serif;font-size:.9rem;line-height:1.35;padding-top:1px}
-  .when .time{display:block;color:var(--text-muted);font-family:'Inter',sans-serif;font-size:.76rem;margin-top:2px}
-  .bd{flex:1;min-width:0}
-  .ttl{font-weight:600;font-size:.97rem;margin:0 0 3px}
-  .loc{color:var(--text-muted);font-size:.83rem;margin:0 0 6px}
-  .pair{font-size:.79rem;font-weight:600;color:var(--clay);margin:0 0 7px;
-    display:flex;align-items:center;gap:5px}
-  .pair.done{color:var(--sage)}
-  .row.orphan{border-color:var(--clay);box-shadow:0 0 0 1px var(--clay)}
-  .pair.urgent{color:var(--clay);font-weight:700}
-  .addhome{display:flex;align-items:center;gap:11px;background:var(--card-bg);
-    border:1px solid var(--border);border-radius:11px;padding:11px 13px;margin:0 0 16px;
-    cursor:pointer;font-family:inherit;text-align:left;width:100%}
-  .addhome .ic{flex:0 0 auto;width:34px;height:34px;border-radius:9px;
-    background:#EDF1F0;display:flex;align-items:center;justify-content:center}
-  .addhome .ic svg{width:18px;height:18px}
-  .addhome .tx{flex:1;min-width:0}
-  .addhome strong{display:block;font-size:.87rem;font-weight:600;color:var(--text)}
-  .addhome span{font-size:.79rem;color:var(--text-muted);line-height:1.4}
-  .addhome .x{flex:0 0 auto;font-size:1.1rem;color:var(--text-muted);
-    padding:2px 6px;background:none;border:none;cursor:pointer;font-family:inherit}
-  .howto{font-size:.88rem;line-height:1.6;color:var(--text-muted)}
-  .howto ol{margin:0;padding-left:20px}
-  .howto li{margin-bottom:8px}
-  .howto strong{color:var(--text)}
-  .newtag{display:inline-block;font-size:.66rem;font-weight:700;letter-spacing:.06em;
-    text-transform:uppercase;color:#fff;background:var(--clay);border-radius:100px;
-    padding:2px 7px;margin-left:7px;vertical-align:middle}
-  .askbar{display:flex;justify-content:space-between;align-items:center;gap:10px;
-    background:var(--card-bg);border:1px solid var(--border);border-radius:9px;
-    padding:10px 13px;margin:0 0 18px;font-size:.83rem;color:var(--text-muted)}
-  .askbar button{font-size:.78rem;font-weight:600;padding:7px 13px;border-radius:7px;
-    border:1px solid var(--sage);background:var(--sage);color:#fff;
-    cursor:pointer;font-family:inherit;flex:0 0 auto}
-  .askbar button:disabled{opacity:.55}
-  .newbar{background:#FBF3EE;border:1px solid #E8D3C4;border-radius:9px;
-    padding:10px 13px;margin:0 0 16px;font-size:.86rem;font-weight:600;
-    color:var(--clay);line-height:1.45}
-  .journey .count{display:inline-block;font-size:.68rem;font-weight:700;color:#fff;
-    background:var(--clay);border-radius:100px;padding:2px 7px;margin-left:7px;
-    vertical-align:middle;letter-spacing:.03em}
-  .ask-bg{position:fixed;inset:0;background:rgba(43,35,33,.45);z-index:90;
-    display:flex;align-items:center;justify-content:center;padding:22px}
-  .ask{background:var(--card-bg);border-radius:14px;padding:22px 20px 18px;
-    max-width:380px;width:100%;box-shadow:0 12px 40px rgba(43,35,33,.22)}
-  .ask h3{font-family:'Fraunces',serif;font-size:1.15rem;font-weight:600;
-    margin:0 0 9px;line-height:1.3}
-  .ask p{margin:0 0 18px;font-size:.9rem;line-height:1.55;color:var(--text-muted)}
-  .ask .acts{display:flex;flex-direction:column;gap:8px}
-  .ask button{font-family:inherit;font-size:.9rem;font-weight:600;border-radius:9px;
-    padding:12px 16px;cursor:pointer;border:1px solid var(--border);
-    background:var(--card-bg);color:var(--text)}
-  .ask button.yes{background:var(--sage);border-color:var(--sage);color:#fff}
-  .instr{margin:0 0 10px}
-  .instr summary{cursor:pointer;list-style:none;font-size:.78rem;font-weight:600;
-    color:var(--teal);background:#EDF1F0;border:1px solid #D8E2E0;border-radius:100px;
-    padding:4px 11px;display:inline-flex;align-items:center;gap:5px;
-    -webkit-tap-highlight-color:transparent}
-  .instr summary:active{background:#E2E9E7}
-  .row.mine .instr summary{color:var(--sage);background:#EFF2EC;border-color:#DDE4D6}
-  .instr summary::-webkit-details-marker{display:none}
-  .instr summary::after{content:'›';display:inline-block;transition:transform .15s;
-    font-size:1rem;line-height:1}
-  .instr[open] summary::after{transform:rotate(90deg)}
-  .instr .text{color:var(--text-muted);font-size:.83rem;line-height:1.5;
-    margin:5px 0 0;white-space:pre-wrap}
-  .row.mine .instr .text{color:var(--text);background:#FBF9F4;
-    border-left:2px solid var(--sage);padding:8px 10px;border-radius:0 5px 5px 0}
-  .btn{font-family:inherit;font-size:.83rem;font-weight:600;border:none;border-radius:7px;
-    padding:9px 15px;cursor:pointer}
-  .btn.primary{background:var(--text);color:#fff}
-  .btn.primary[disabled]{opacity:.5;cursor:default}
-  .btn.ghost{background:transparent;color:var(--text-muted);padding-left:0;text-decoration:underline}
-  .btn.small{font-size:.78rem;padding:6px 11px}
-  .btn.link{background:transparent;color:var(--text-muted);font-size:.78rem;padding:4px 0;
-    text-decoration:underline;font-weight:500}
-  .vol{font-size:.85rem;margin:0 0 4px} .vol strong{font-weight:600}
-  .yours{display:inline-block;font-size:.71rem;font-weight:600;color:var(--sage);border:1px solid var(--sage);
-    border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:1px}
-  input{width:100%;font-family:inherit;font-size:.92rem;padding:10px;border:1px solid var(--border);
-    border-radius:6px;margin-bottom:9px;background:var(--bg);color:var(--text)}
-  .hint{color:var(--text-muted);font-size:.76rem;margin:-4px 0 10px;line-height:1.4}
-  label{display:block;font-size:.78rem;font-weight:600;color:var(--text);margin:2px 0 5px}
-  .req{font-weight:500;color:var(--rose);font-size:.72rem;margin-left:4px}
-  .opt{font-weight:500;color:var(--text-muted);font-size:.72rem;margin-left:4px}
-  .field-row{display:flex;gap:10px}
-  .field-half{flex:1;min-width:0}
-  .field-err{color:var(--rose);font-size:.74rem;margin:-5px 0 8px;line-height:1.35}
-  input.bad{border-color:var(--rose)}
-  .assign{border:1px solid var(--border);background:var(--card-bg);border-radius:10px;
-    padding:13px;margin-bottom:11px}
-  .assign h4{margin:0 0 2px;font-size:.94rem;font-weight:600}
-  .assign .ameta{color:var(--text-muted);font-size:.81rem;margin:0 0 9px;line-height:1.45}
-  .assign input{font-size:.87rem;padding:8px 10px;margin-bottom:7px}
-  .arow{display:flex;gap:8px}
-  .arow input{flex:1;min-width:0}
-  .journey{display:block;width:100%;text-align:left;background:var(--card-bg);
-    border:1px solid var(--border);border-radius:10px;padding:13px 15px;
-    margin:0 0 20px;cursor:pointer;font-family:inherit}
-  .journey strong{display:block;font-size:.95rem;font-weight:600;color:var(--text);margin-bottom:3px}
-  .journey span{font-size:.83rem;color:var(--text-muted);line-height:1.45}
-  .tierrow{display:flex;justify-content:space-between;align-items:center;gap:10px;
-    padding:11px 0;border-top:1px solid var(--border)}
-  .tierrow .who{min-width:0}
-  .tierrow .who strong{font-weight:600;font-size:.88rem}
-  .tierrow .em{color:var(--text-muted);font-size:.79rem}
-  .tierbtns{display:flex;gap:6px;flex:0 0 auto}
-  .tierbtns button{font-size:.75rem;font-weight:600;padding:6px 10px;border-radius:6px;
-    border:1px solid var(--border);background:var(--card-bg);color:var(--text-muted);
-    cursor:pointer;font-family:inherit}
-  .tierbtns button.on{background:var(--text);border-color:var(--text);color:#fff}
-  .postrow{border:1px solid var(--border);background:var(--card-bg);border-radius:10px;
-    padding:13px;margin-bottom:10px}
-  .postrow h4{margin:0 0 2px;font-size:.94rem;font-weight:600}
-  .postrow .pmeta{color:var(--text-muted);font-size:.79rem;margin:0 0 9px}
-  .postrow .excerpt{color:var(--text-muted);font-size:.84rem;line-height:1.5;margin:0 0 11px}
-  .postbtns{display:flex;gap:6px;flex-wrap:wrap}
-  .postbtns button{font-size:.75rem;font-weight:600;padding:6px 10px;border-radius:6px;
-    border:1px solid var(--border);background:var(--card-bg);color:var(--text-muted);
-    cursor:pointer;font-family:inherit}
-  .postbtns button.on{background:var(--text);border-color:var(--text);color:#fff}
-  .postbtns button.danger{color:var(--rose);border-color:var(--rose)}
-  .topbtns{display:flex;gap:7px;flex:0 0 auto}
-  .pastbar{display:flex;justify-content:space-between;align-items:center;gap:10px;
-    background:var(--card-bg);border:1px solid var(--border);border-radius:9px;
-    padding:9px 12px;margin:0 0 18px;font-size:.83rem;color:var(--text-muted)}
-  .pastbar button{font-size:.78rem;font-weight:600;padding:6px 12px;border-radius:6px;
-    border:1px solid var(--border);background:var(--card-bg);color:var(--text);
-    cursor:pointer;font-family:inherit;flex:0 0 auto}
-  .yours-box{background:var(--card-bg);border:1px solid var(--sage);border-radius:11px;
-    padding:13px 15px;margin:0 0 16px}
-  .yours-box h3{font-family:'Fraunces',serif;font-size:1rem;font-weight:600;
-    margin:0 0 8px;color:var(--text)}
-  .yours-box ul{margin:0;padding:0;list-style:none}
-  .yours-box li{font-size:.88rem;line-height:1.5;margin-bottom:5px;color:var(--text)}
-  .yours-box li:last-child{margin-bottom:0}
-  .yours-box .w{color:var(--text-muted)}
-  .together{font-size:.85rem;color:var(--text-muted);line-height:1.5;
-    margin:0 0 20px;padding:0 2px}
-  .moreline{text-align:center;padding:16px 0 4px}
-  .moreline button{font-family:inherit;font-size:.84rem;font-weight:600;
-    background:transparent;border:none;color:var(--text-muted);
-    text-decoration:underline;cursor:pointer;padding:6px}
-  .help{background:var(--card-bg);border:1px solid var(--border);border-radius:12px;
-    padding:6px 16px 10px;margin:0 0 22px}
-  .help details{border-bottom:1px solid var(--border)}
-  .help details:last-of-type{border-bottom:none}
-  .help summary{cursor:pointer;list-style:none;padding:13px 0;font-size:.92rem;
-    font-weight:600;color:var(--text);display:flex;justify-content:space-between;
-    align-items:center;gap:10px}
-  .help summary::-webkit-details-marker{display:none}
-  .help summary::after{content:'+';color:var(--text-muted);font-weight:400;font-size:1.1rem}
-  .help details[open] summary::after{content:'–'}
-  .help p{margin:0 0 12px;font-size:.89rem;line-height:1.6;color:var(--text-muted)}
-  .help p:last-child{margin-bottom:14px}
-  .help h3{font-family:'Fraunces',serif;font-size:1.05rem;font-weight:500;
-    margin:16px 0 2px;color:var(--text)}
-  .err{color:var(--rose);font-size:.79rem;margin:-2px 0 9px;line-height:1.4}
-  .invite{border:1px solid var(--border);background:var(--card-bg);border-radius:10px;padding:14px;margin-bottom:12px}
-  .invite h4{margin:0 0 2px;font-size:.95rem;font-weight:600}
-  .invite .meta{color:var(--text-muted);font-size:.82rem;margin:0 0 10px}
-  .field{margin-bottom:10px}
-  .field label{display:block;font-size:.75rem;font-weight:600;color:var(--text-muted);margin-bottom:4px}
-  .field textarea,.field .copyline{width:100%;font-family:inherit;font-size:.84rem;padding:8px 10px;
-    border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);line-height:1.5}
-  .field textarea{min-height:88px;resize:vertical}
-  .copied{color:var(--sage);font-size:.76rem;font-weight:600;margin-left:8px}
-  .person{display:flex;justify-content:space-between;gap:10px;padding:11px 0;border-top:1px solid var(--border);font-size:.86rem}
-  .person .em{color:var(--text-muted);font-size:.8rem}
-  .status{color:var(--text-muted);font-size:.88rem;padding:20px 0}
-  .banner{background:var(--card-bg);border:1px solid var(--rose);color:var(--rose);border-radius:8px;
-    padding:10px 12px;font-size:.84rem;margin-bottom:14px;line-height:1.45}
+  .app{max-width:640px;margin:0 auto;padding:26px 18px 64px}
+  .topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:6px}
+  h1{font-family:'Fraunces',serif;font-weight:600;font-size:1.85rem;margin:0 0 6px;letter-spacing:-.01em}
+  .sub{margin:0 0 26px;color:var(--text-muted);font-size:.93rem;line-height:1.5;max-width:46ch}
+  .back{flex:0 0 auto;font-size:.78rem;font-weight:600;border:1px solid var(--border);
+    background:var(--card-bg);color:var(--text-muted);border-radius:100px;padding:6px 13px;
+    cursor:pointer;font-family:inherit;text-decoration:none;display:inline-block}
+  .status{color:var(--text-muted);font-size:.9rem;padding:22px 0;line-height:1.55}
+  .gate{background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:20px}
+  .gate h2{font-family:'Fraunces',serif;font-size:1.15rem;font-weight:500;margin:0 0 8px}
+  .gate p{color:var(--text-muted);font-size:.9rem;line-height:1.55;margin:0 0 14px}
+  .btn{font-family:inherit;font-size:.84rem;font-weight:600;border:none;border-radius:7px;
+    padding:9px 15px;cursor:pointer;background:var(--text);color:#fff;text-decoration:none;
+    display:inline-block}
+  .post{border-top:1px solid var(--border);padding:26px 0 6px}
+  .post:first-of-type{border-top:none;padding-top:4px}
+  .post h2{font-family:'Fraunces',serif;font-weight:600;font-size:1.35rem;
+    margin:0 0 4px;letter-spacing:-.01em;line-height:1.3}
+  .when{color:var(--text-muted);font-size:.79rem;margin:0 0 14px}
+  .body{font-size:1rem;line-height:1.68}
+  .body p{margin:0 0 15px}
+  .body h1,.body h2,.body h3{font-family:'Fraunces',serif;font-weight:600;
+    line-height:1.3;margin:24px 0 9px}
+  .body h1{font-size:1.2rem} .body h2{font-size:1.1rem} .body h3{font-size:1rem}
+  .body ul,.body ol{margin:0 0 15px;padding-left:22px}
+  .body li{margin-bottom:6px}
+  .body blockquote{margin:0 0 15px;padding:2px 0 2px 15px;border-left:3px solid var(--border);
+    color:var(--text-muted);font-style:italic}
+  .body hr{border:none;border-top:1px solid var(--border);margin:24px 0}
+  .body code{background:var(--card-bg);border:1px solid var(--border);border-radius:4px;
+    padding:1px 5px;font-size:.9em}
+  .body a{color:var(--teal)}
+  .body strong{font-weight:600}
 </style>
 </head>
 <body>
 <div class="app" id="root">
   <div class="topbar">
-    <div><h1 id="h1">For Tracey</h1><p class="sub" id="sub"></p></div>
-    <div class="topbtns">
-      <button class="modetoggle" id="helpbtn">Help</button>
-      <button class="modetoggle" id="mode">Coordinator</button>
-    </div>
+    <div><h1>Tracey&rsquo;s journey</h1></div>
+    <a class="back" href="/">Back</a>
   </div>
-  <div id="content" class="status">Loading…</div>
+  <p class="sub" id="sub"></p>
+  <div id="content" class="status">Loading&hellip;</div>
 </div>
 
 <script src="config.js"></script>
@@ -272,933 +80,179 @@
 (function () {
   var cfg = window.TRACEY_CONFIG || {};
   var content = document.getElementById('content');
-  var modeBtn = document.getElementById('mode');
-  var h1 = document.getElementById('h1'), sub = document.getElementById('sub');
+  var sub = document.getElementById('sub');
 
   if (!cfg.SUPABASE_URL || cfg.SUPABASE_URL.indexOf('YOUR-PROJECT') !== -1) {
-    content.innerHTML = '<div class="banner">config.js still has placeholder values. Add your Supabase project URL and anon key, then reload.</div>';
-    modeBtn.style.display = 'none';
+    content.textContent = 'config.js still has placeholder values.';
     return;
   }
   var db = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
-
-  // Who decides on journal access. Set in config.js. All the wording
-  // below avoids he/she, so any name reads correctly.
   var APPROVER = (cfg.APPROVER || 'the coordinator');
 
-  var CATS = [
-    {key:'rides',   label:'Rides',    color:'var(--sage)'},
-    {key:'izzy',    label:'Izzy',     color:'var(--clay)'},
-    {key:'walks',   label:'Walks',    color:'var(--ochre)'},
-    {key:'errands', label:'Errands',  color:'var(--slate)'},
-    {key:'other',   label:'Other',    color:'var(--grey)'}
-  ];
-  var catBy = {}; CATS.forEach(function(c){ catBy[c.key] = c; });
-
-  var needs = [], coordData = null, me = null, cat = 'all';
-  var access = null;   // {access:'none'|'approved'|'close', requested:bool}
-  var posts = null;    // Tracey's journal, coordinator view only
-  var showHelp = false;
-  var showPast = false;   // coordinator view: include finished needs
-  var showAll = false;    // friend view: beyond the next fortnight
-  var newIds = null;      // ids that were new on arrival, held for the visit
-  var installEvt = null;  // Android only; iOS never fires this
-  var hideAdd = false;
-  var lastLoaded = 0;     // when the list was last fetched
-  var coord = false, pass = '', copiedKey = null, notice = '', busy = null, poll = null;
+  function lsGet(k){ try { return JSON.parse(localStorage.getItem(k)); } catch(e){ return null; } }
+  var me = lsGet('tracey_me');
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
-  function fmtD(iso){ return new Date(iso+'T00:00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}); }
-  function fmtL(iso){ return new Date(iso+'T00:00:00').toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'}); }
-  function first(n){ return String(n||'').split(' ')[0]; }
 
-  function lsGet(k){ try { return JSON.parse(localStorage.getItem(k)); } catch(e){ return null; } }
-  function lsSet(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
-  me = lsGet('tracey_me');
-
-  async function loadNeeds(){
-    lastLoaded = Date.now();
-    // Whether this person can read Tracey's journal, and whether they
-    // have already asked. Failure here must never block the needs list.
-    if (me) {
-      try {
-        var ar = await db.rpc('my_access', { p_email: me.email });
-        if (!ar.error && ar.data) access = ar.data;
-      } catch (e) {}
-    }
-    var r = await db.rpc('list_needs', { p_email: me ? me.email : null });
-
-    // Marking a need as new is only useful if the marker lasts. Capture
-    // them once on arrival and reuse that set, so claiming something
-    // does not quietly wipe the others.
-    if (newIds === null && !r.error && me) {
-      newIds = {};
-
-      // Only flag what a friend can actually see and act on: still open,
-      // and inside the fortnight the list already shows. Without this a
-      // re-sent daily series would arrive as thirty new things at once
-      // and turn the whole page orange.
-      var far = new Date(); far.setDate(far.getDate() + 14);
-      var farStr = far.toISOString().slice(0, 10);
-
-      (r.data || []).forEach(function(n){
-        if (!n.is_new || n.status !== 'OPEN') return;
-        // The database already keeps repeating occurrences to a week;
-        // one-offs are held to the two weeks the list shows.
-        if (n.date <= farStr) newIds[n.id] = true;
-      });
-      // Nothing is marked seen just for loading the page. A friend who
-      // opens it, reads, and closes it without signing up for anything
-      // should find the same markers next time — they have not dealt
-      // with any of it yet. The markers clear when they claim something,
-      // or age out on their own.
-    }
-    if (r.error) { notice = 'Could not reach the schedule. Check your connection and reload.'; }
-    else { needs = r.data || []; notice = ''; }
-    render();
-  }
-
-  async function loadCoord(){
-    // Posts are a separate call so a journal problem cannot stop the
-    // rest of the coordinator view loading.
+  function fmtWhen(iso){
     try {
-      var pr = await db.rpc('coordinator_posts', { p_pass: pass });
-      posts = pr.error ? [] : (pr.data || []);
-    } catch (e) { posts = []; }
-
-    var r = await db.rpc('coordinator_data', { p_pass: pass, p_past: showPast });
-
-    if (r.error) {
-      // Tracey has her own passphrase and her own page. Rather than make
-      // her remember a second address, the same box recognises hers and
-      // sends her there.
-      try {
-        var t = await db.rpc('tracey_view', { p_pass: pass });
-        if (!t.error) {
-          try { sessionStorage.setItem('tracey_pass', pass); } catch (e) {}
-          window.location.href = '/mine';
-          return;
-        }
-      } catch (e) { /* not hers either */ }
-
-      coordData = null;
-      notice = 'That passphrase was not accepted.';
-      pass = '';
-    }
-    else { coordData = r.data; notice = ''; }
-    render();
+      return new Date(iso).toLocaleDateString(undefined,
+        { weekday:'long', month:'long', day:'numeric' });
+    } catch(e){ return ''; }
   }
 
-  function startPoll(){
-    if (poll) return;
-    poll = setInterval(function(){ if(!coord && me) loadNeeds(); }, 10000);
-  }
-
-  // Tells the coordinators that something changed. Deliberately not
-  // awaited: a slow or failing email must never hold up the page or
-  // stop someone signing up.
-  // Lets the coordinator know someone has asked to read the journal.
-  // Fire and forget, like the other notifications.
-  // Tells a friend they can read the journal, with the link. Also used
-  // to send it again later, which is why it reports whether it worked.
-  async function notifyGranted(email, name, again) {
-    try {
-      var res = await fetch('/api/notify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'access-granted', email: email, name: name, again: again === true
-        })
-      });
-      return res.ok;
-    } catch (e) { return false; }
-  }
-
-  function notifyAccess(email, name) {
-    try {
-      fetch('/api/notify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'access-request', email: email, name: name })
-      }).catch(function(){});
-    } catch (e) {}
-  }
-
-  function notify(id, action) {
-    try {
-      fetch('/api/notify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: id, action: action })
-      }).catch(function(){});
-    } catch (e) {}
-  }
-
-  function inviteBody(n){
-    return ['Volunteer: ' + (n.volunteer_name||''), 'Status: FILLED', '',
-      n.location ? ('Where: ' + n.location) : '', '',
-      n.instructions||'', '',
-      'Thank you so much for helping. If something changes on your end, release the slot on the signup page and we will find someone else.'
-    ].join('\n');
-  }
-
-  function gate(){
-    return '<div class="gate"><h2>Add yourself first</h2>'
-      + '<p>We need your email so we can send you the calendar invitation when you sign up for something. '
-      + 'That way you get reminders, and if a time changes your calendar updates on its own — no texts needed.</p>'
-      + '<div class="field-row">'
-      +   '<div class="field-half">'
-      +     '<label for="r-first">First name <span class="req">required</span></label>'
-      +     '<input type="text" id="r-first" autocomplete="given-name" autocapitalize="words" />'
-      +     '<div class="field-err" id="e-first"></div>'
-      +   '</div>'
-      +   '<div class="field-half">'
-      +     '<label for="r-last">Last name <span class="req">required</span></label>'
-      +     '<input type="text" id="r-last" autocomplete="family-name" autocapitalize="words" />'
-      +     '<div class="field-err" id="e-last"></div>'
-      +   '</div>'
-      + '</div>'
-      + '<label for="r-email">Email <span class="req">required</span></label>'
-      + '<input type="email" id="r-email" autocomplete="email" inputmode="email" autocapitalize="none" placeholder="so we can send you the invitation" />'
-      + '<div class="field-err" id="e-email"></div>'
-      + '<label for="r-phone">Phone <span class="opt">optional</span></label>'
-      + '<input type="tel" id="r-phone" autocomplete="tel" inputmode="tel" />'
-      + '<p class="hint">Other friends only see your first name. The rest is so Tracey and the coordinators know exactly who is coming.</p>'
-      + '<p class="hint">Been here before? Enter the same email and everything you have signed up for comes straight back.</p>'
-      + '<p class="hint">Only Tracey and the coordinators see your contact details. Other friends just see your first name next to what you have signed up for.</p>'
-      + '<div class="err" id="r-err" style="display:none"></div>'
-      + '<button class="btn primary" data-action="register">Continue</button></div>';
-  }
-
-  // The journal entry point. Always visible, so nobody has to be told
-  // it exists. What it does depends on where they stand.
-  function journeyButton() {
-    var state = access ? access.access : 'none';
-    if (state === 'approved' || state === 'close') {
-      var unread = (access && access.unread) ? Number(access.unread) : 0;
-      return '<button class="journey" data-action="journal">'
-        + '<strong>Tracey\u2019s journey'
-        +   (unread ? '<span class="count">' + unread + ' new</span>' : '')
-        + '</strong>'
-        + '<span>' + (unread
-            ? (unread === 1 ? 'She has written something new.'
-                            : 'She has written ' + unread + ' new pieces.')
-            : 'Her own words on how things are going.') + '</span></button>';
-    }
-    if (access && access.requested) {
-      return '<button class="journey" data-action="journey-pending">'
-        + '<strong>Tracey\u2019s journey</strong>'
-        + '<span>You have asked to read her updates. ' + esc(APPROVER) + ' will let you in shortly.</span></button>';
-    }
-    return '<button class="journey" data-action="journey-ask">'
-      + '<strong>Tracey\u2019s journey</strong>'
-      + '<span>She writes about how things are going. Tap to ask for access.</span></button>';
-  }
-
-  // Written for friends rather than for whoever built it: plain language,
-  // answers to what people actually hesitate over. The coordinator part
-  // only appears when the coordinator view is open.
-  function helpPanel() {
-    function q(question, answer) {
-      return '<details><summary>' + question + '</summary>' + answer + '</details>';
-    }
-
-    var friend = ''
-      + q('What is this page for?',
-          '<p>Tracey is recovering, and a lot of people have offered to help. '
-        + 'This is one list everyone can see, so nothing gets doubled up and '
-        + 'nobody has to coordinate over text.</p>')
-
-      + q('Do I have to sign up for anything?',
-          '<p>Just your name and email, once. There is no password and no app '
-        + 'to install. Your browser remembers you afterwards.</p>')
-
-      + q('Why do you need my email?',
-          '<p>So the calendar invitation can reach you. That way the time and '
-        + 'place land on your own calendar, and if anything changes your '
-        + 'calendar updates on its own \u2014 nobody has to text you.</p>'
-        + '<p>Only ' + esc(APPROVER) + ' and the coordinators see your email and '
-        + 'phone number. Other friends just see your name next to whatever you '
-        + 'have signed up for.</p>')
-
-      + q('What happens after I tap \u201cI can help\u201d?',
-          '<p>The need shows as covered straight away, so nobody else takes it. '
-        + 'Shortly afterwards you get a calendar invitation by email. Open it '
-        + 'and it goes on your calendar.</p>'
-        + '<p>If the invitation does not arrive within a few minutes, check your '
-        + 'junk folder \u2014 and let ' + esc(APPROVER) + ' know, because it may '
-        + 'mean the email address was mistyped.</p>')
-
-      + q('Something came up and I cannot make it',
-          '<p>Open the page, find what you signed up for, and tap '
-        + '\u201cFree up this slot\u201d. It goes straight back on the list for '
-        + 'someone else, and the coordinators are told.</p>'
-        + '<p>Please do it there rather than by text \u2014 that is the whole '
-        + 'point of the page, and it means nothing quietly falls through.</p>')
-
-      + q('The time changed. Do I need to do anything?',
-          '<p>No. You are a real attendee on the calendar event, so any change '
-        + 'reaches you the same way any meeting change would. Your calendar '
-        + 'updates itself.</p>')
-
-      + q('What are the buttons across the top?',
-          '<p>They filter the list \u2014 Rides, Izzy, Walks, Errands, Other. '
-        + '\u201cAll\u201d shows everything. They only change what you are '
-        + 'looking at; nothing is hidden.</p>')
-
-      + q('What is \u201cTracey\u2019s journey\u201d?',
-          '<p>Tracey writes about how her recovery is going. Reading it needs '
-        + esc(APPROVER) + ' to approve you first \u2014 signing up to help does '
-        + 'not automatically give you access.</p>'
-        + '<p>Tap the button and it will ask on your behalf.</p>')
-
-      + q('I am on a different phone or my browser forgot me',
-          '<p>Enter the same email address again. Everything you signed up for '
-        + 'comes straight back.</p>')
-
-      + q('Something looks wrong',
-          '<p>Tell ' + esc(APPROVER) + '. If a need looks like it is at the wrong '
-        + 'time, or someone is shown who should not be, it is worth saying '
-        + 'rather than assuming.</p>');
-
-    var coord = !coord_mode() ? '' : ''
-      + '<h3>For coordinators</h3>'
-      + q('Creating a need',
-          '<p>Make the event on the Tracey Recovery calendar in Outlook and add '
-        + 'the signup address as an attendee. It appears here within seconds.</p>'
-        + '<p>Put a tag in the title if you want to be sure where it files: '
-        + '<code>#rides</code> <code>#izzy</code> <code>#walks</code> '
-        + '<code>#errands</code> <code>#other</code>. The tag is removed before '
-        + 'friends see it.</p>')
-
-      + q('Changing or cancelling',
-          '<p>Edit the event in Outlook and <strong>Send Update</strong> \u2014 not '
-        + 'just Save. Save emails nobody, so nothing reaches this page.</p>'
-        + '<p>Whoever claimed it keeps it, and gets the change directly from '
-        + 'Outlook.</p>')
-
-      + q('Someone phoned instead of using the page',
-          '<p>Use <strong>Sign someone up</strong>. They get the same calendar '
-        + 'invitation and appear in the roster.</p>')
-
-      + q('Swapping one person for another',
-          '<p>Free the slot in <strong>Covered</strong>, then sign the new person '
-        + 'up. If the Outlook invitation had already gone out, remove the first '
-        + 'person from the event in Outlook first \u2014 that is what actually '
-        + 'tells them.</p>')
-
-      + q('Approving someone for the journal',
-          '<p><strong>Waiting to read her updates</strong> lists anyone who has '
-        + 'asked. Approve or decline there. You can also change anyone\u2019s '
-        + 'level later under Registered friends.</p>'
-        + '<p>Nobody is told which level they are on, and nobody sees any sign '
-        + 'that posts exist which they cannot read.</p>')
-
-      + q('A need will not go away',
-          '<p>Tap <strong>Remove</strong> on it. That deletes it from the page.</p>'
-        + '<p>This happens when the event was cancelled in Outlook but the signup '
-        + 'address was never a real attendee on it \u2014 usually because the '
-        + 'invitation was forwarded rather than the address being added to the '
-        + 'event itself. Outlook sends the cancellation to its own attendees, so '
-        + 'nothing reaches this page.</p>'
-        + '<p>To avoid it: add the signup address to the event in Outlook rather '
-        + 'than forwarding the invitation on. Then cancellations and changes '
-        + 'arrive on their own.</p>'
-        + '<p>If someone had signed up, they are emailed automatically to say it '
-        + 'is cancelled. If they were also on the Outlook invite, cancel that '
-        + 'event in Outlook too so it leaves their calendar.</p>')
-
-      + q('Asking everyone to take a look',
-          '<p><strong>Ask everyone</strong> at the top emails every registered '
-        + 'friend a list of what is still open, with the link. Each one goes '
-        + 'separately, so nobody sees anyone else\u2019s address.</p>'
-        + '<p>The bar says when you last did it, because the quickest way to '
-        + 'make people stop reading these is to send two in a morning. Once a '
-        + 'week, or when something genuinely needs covering, is about right.</p>'
-        + '<p>It only appears when something is actually open.</p>')
-
-      + q('Finding something that already happened',
-          '<p>The panel shows what is still ahead, so it stays usable. Tap '
-        + '<strong>Show past</strong> at the top to include everything that has '
-        + 'already happened \u2014 useful for looking someone up, or for tidying '
-        + 'away things that should not have been there.</p>'
-        + '<p>Nothing is ever deleted by hiding it. Friends only ever see what is '
-        + 'ahead of them.</p>')
-
-      + q('Tracey wants to correct a post',
-          '<p>She reposts the corrected version by email, and you hide the old '
-        + 'one. Hiding keeps it in case she changes her mind; deleting is '
-        + 'permanent.</p>')
-
-      + q('Checking the system is working',
-          '<p>Open <code>/api/health</code> on this site. '
-        + '<code>&quot;healthy&quot;: true</code> is the whole answer. It also '
-        + 'runs itself daily and emails only if something is wrong.</p>');
-
-    return '<div class="help">' + friend + coord + '</div>';
-  }
-
-  function coord_mode() { return coord; }
-
-  // What this friend has taken on. Shown above everything else, because
-  // their own commitments are the one thing they should never hunt for.
-  function yoursBox() {
-    var mine = needs.filter(function(n){
-      return n.status === 'FILLED' && n.is_mine === true;
-    }).sort(function(a,b){ return a.date.localeCompare(b.date); });
-
-    if (!mine.length) return '';
-
-    return '<div class="yours-box">'
-      + '<h3>You are covering</h3><ul>'
-      + mine.map(function(n){
-          return '<li><strong>' + esc(n.title) + '</strong>'
-            + '<span class="w"> \u00b7 ' + fmtD(n.date) + ', ' + esc(n.start_time) + '</span></li>';
-        }).join('')
-      + '</ul></div>';
-  }
-
-  // One collective line, never a tally per person. Who did what is
-  // already visible next to each need; counting and ranking would turn
-  // helping into a scoreboard, and the person with least capacity would
-  // come off worst.
-  function togetherLine() {
-    var covered = needs.filter(function(n){ return n.status === 'FILLED'; });
-    if (!covered.length) return '';
-
-    var people = {};
-    covered.forEach(function(n){
-      if (n.volunteer_name) people[n.volunteer_name] = true;
-    });
-    var n_people = Object.keys(people).length;
-    if (!n_people) return '';
-
-    return '<p class="together">'
-      + n_people + (n_people === 1 ? ' friend is' : ' friends are') + ' covering '
-      + covered.length + (covered.length === 1 ? ' thing' : ' things') + '.'
-      + '</p>';
-  }
-
-  // Collapsed by default: with a fortnight of needs on screen, a note on
-  // every card turns a scannable list into a wall. Open by default on
-  // your own claim, because that is the person who has to act on it.
-  // The other half of an appointment. Whichever leg is still open is the
-  // one that matters: a covered ride there and an uncovered ride home is
-  // how somebody ends up stranded.
-  // The browser's own confirm box only offers OK and Cancel, which makes
-  // a yes/no question read awkwardly. This asks properly, and resolves
-  // to true or false so the claim flow can wait on it.
-  // A plain walkthrough rather than a yes/no, so it uses the same card
-  // style without pretending to be a question.
-  function showHowTo() {
-    return new Promise(function (resolve) {
-      var bg = document.createElement('div');
-      bg.className = 'ask-bg';
-      bg.innerHTML = '<div class="ask">'
-        + '<h3>Add it to your home screen</h3>'
-        + '<div class="howto"><ol>'
-        +   '<li>Tap the <strong>Share</strong> button at the bottom of Safari '
-        +     '\u2014 a square with an arrow pointing up.</li>'
-        +   '<li>Scroll down the list and tap <strong>Add to Home Screen</strong>.</li>'
-        +   '<li>Tap <strong>Add</strong>.</li>'
-        + '</ol><p style="margin:14px 0 0">It will sit with your apps, and open '
-        + 'straight to this page.</p></div>'
-        + '<div class="acts" style="margin-top:18px">'
-        +   '<button class="yes" data-close="1">Got it</button>'
-        + '</div></div>';
-
-      function done() {
-        if (bg.parentNode) bg.parentNode.removeChild(bg);
-        document.removeEventListener('keydown', onKey);
-        resolve();
-      }
-      function onKey(ev) { if (ev.key === 'Escape') done(); }
-
-      bg.addEventListener('click', function (ev) {
-        if (ev.target.closest('[data-close]') || ev.target === bg) done();
-      });
-      document.addEventListener('keydown', onKey);
-      document.body.appendChild(bg);
-    });
-  }
-
-  function askYesNo(heading, detail, yesLabel, noLabel) {
-    return new Promise(function (resolve) {
-      var bg = document.createElement('div');
-      bg.className = 'ask-bg';
-      bg.innerHTML = '<div class="ask">'
-        + '<h3>' + esc(heading) + '</h3>'
-        + '<p>' + esc(detail) + '</p>'
-        + '<div class="acts">'
-        +   '<button class="yes" data-yes="1">' + esc(yesLabel) + '</button>'
-        +   '<button data-yes="0">' + esc(noLabel) + '</button>'
-        + '</div></div>';
-
-      function done(v) {
-        if (bg.parentNode) bg.parentNode.removeChild(bg);
-        document.removeEventListener('keydown', onKey);
-        resolve(v);
-      }
-      function onKey(e) { if (e.key === 'Escape') done(false); }
-
-      bg.addEventListener('click', function (e) {
-        var b = e.target.closest('[data-yes]');
-        if (b) { done(b.getAttribute('data-yes') === '1'); return; }
-        // Tapping outside is not an answer either way, so treat it as no.
-        if (e.target === bg) done(false);
-      });
-      document.addEventListener('keydown', onKey);
-      document.body.appendChild(bg);
-    });
-  }
-
-  // Adding to the home screen.
+  // ---------- a small markdown renderer ----------
   //
-  // Android browsers fire an event we can use to show the real install
-  // dialog. Safari does not and never has, so on an iPhone the only
-  // route is Share then Add to Home Screen \u2014 which most people have
-  // never noticed. Showing them where it is is the whole value here.
-  function alreadyInstalled() {
-    try {
-      return window.matchMedia('(display-mode: standalone)').matches
-          || window.navigator.standalone === true;
-    } catch (e) { return false; }
+  // Deliberately not a library. This covers what a document exported to
+  // markdown actually contains: headings, paragraphs, lists, quotes,
+  // emphasis, links, rules. Anything unusual renders as plain text
+  // rather than breaking, which is the right failure for someone's
+  // personal writing.
+  //
+  // Everything is escaped before any markup is added, so nothing in the
+  // text can inject HTML.
+  function inline(t) {
+    return esc(t)
+      .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, '')          // images: drop
+      .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function(_, label, href) {
+        return /^https?:\/\//i.test(href)
+          ? '<a href="' + href + '" rel="noopener">' + label + '</a>'
+          : label;
+      })
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/(^|\W)_([^_]+)_(?=\W|$)/g, '$1<em>$2</em>')
+      .replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, '$1<em>$2</em>');
   }
 
-  function isApple() {
-    return /iPad|iPhone|iPod/.test(navigator.userAgent)
-        || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  }
+  function markdown(src) {
+    var lines = String(src || '').replace(/\r\n/g, '\n').split('\n');
+    var out = [], para = [], list = null;
 
-  function addHomeCard() {
-    if (hideAdd || alreadyInstalled()) return '';
-    if (!isApple() && !installEvt) return '';   // nothing useful to offer
-
-    return '<div class="addhome" data-action="addhome">'
-      + '<span class="ic">'
-      +   '<svg viewBox="0 0 24 24" fill="none" stroke="#3D5A5B" stroke-width="2" '
-      +   'stroke-linecap="round" stroke-linejoin="round">'
-      +   '<rect x="5" y="2" width="14" height="20" rx="2"/>'
-      +   '<line x1="12" y1="8" x2="12" y2="14"/><line x1="9" y1="11" x2="15" y2="11"/>'
-      +   '</svg></span>'
-      + '<span class="tx"><strong>Keep this on your home screen</strong>'
-      +   '<span>One tap to see what Tracey needs.</span></span>'
-      + '<button class="x" data-action="hideadd" aria-label="Dismiss">\u00d7</button>'
-      + '</div>';
-  }
-
-  function todayStr() {
-    var d = new Date();
-    return d.getFullYear() + '-'
-      + String(d.getMonth() + 1).padStart(2, '0') + '-'
-      + String(d.getDate()).padStart(2, '0');
-  }
-
-  // "yesterday" reads better than a timestamp when the question is
-  // really "have I already pestered everyone this morning?"
-  function agoWords(iso) {
-    try {
-      var then = new Date(iso);
-      var hours = (Date.now() - then.getTime()) / 3600000;
-      if (hours < 1) return 'less than an hour ago';
-      if (hours < 24) return Math.round(hours) + ' hours ago';
-      var days = Math.round(hours / 24);
-      if (days === 1) return 'yesterday';
-      if (days < 14) return days + ' days ago';
-      return 'on ' + then.toLocaleDateString(undefined,
-        { month: 'short', day: 'numeric' });
-    } catch (e) { return 'recently'; }
-  }
-
-  function pairLine(n) {
-    if (!n.partner_id) return '';
-
-    // 'out' is the ride to the appointment, 'back' is the ride home. The
-    // other half is therefore the opposite one.
-    var otherWord = n.leg === 'out' ? 'ride home' : 'ride there';
-    var thisWord  = n.leg === 'out' ? 'ride there' : 'ride home';
-    var partnerOpen = n.partner_status === 'OPEN';
-    var mine = n.is_mine === true;
-    var partnerMine = n.partner_is_mine === true;
-
-    // This one is uncovered and the other half is taken: somebody is
-    // already relying on half a journey.
-    if (n.status === 'OPEN' && !partnerOpen) {
-      return '<p class="pair urgent">The ' + otherWord + ' is covered \u2014 '
-        + 'she has no ' + (n.leg === 'out' ? 'way there' : 'way home')
-        + ' without this</p>';
+    function flushPara() {
+      if (para.length) { out.push('<p>' + inline(para.join(' ')) + '</p>'); para = []; }
     }
-
-    if (partnerOpen) {
-      return '<p class="pair">Round trip \u00b7 the ' + otherWord
-        + ' at ' + esc(n.partner_time || '') + ' still needs someone</p>';
+    function flushList() {
+      if (list) { out.push('<' + list.tag + '>' + list.items.join('') + '</' + list.tag + '>'); list = null; }
     }
+    function flushAll() { flushPara(); flushList(); }
 
-    if (mine && partnerMine) {
-      return '<p class="pair done">Round trip \u00b7 you have both halves</p>';
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      var t = line.trim();
+
+      if (!t) { flushAll(); continue; }
+
+      var h = t.match(/^(#{1,6})\s+(.*)$/);
+      if (h) {
+        flushAll();
+        var lvl = Math.min(h[1].length, 3);
+        out.push('<h' + lvl + '>' + inline(h[2]) + '</h' + lvl + '>');
+        continue;
+      }
+
+      if (/^(-{3,}|\*{3,}|_{3,})$/.test(t)) { flushAll(); out.push('<hr>'); continue; }
+
+      var q = t.match(/^>\s?(.*)$/);
+      if (q) { flushAll(); out.push('<blockquote>' + inline(q[1]) + '</blockquote>'); continue; }
+
+      var ul = t.match(/^[-*+]\s+(.*)$/);
+      var ol = t.match(/^\d+[.)]\s+(.*)$/);
+      if (ul || ol) {
+        flushPara();
+        var tag = ul ? 'ul' : 'ol';
+        if (!list || list.tag !== tag) { flushList(); list = { tag: tag, items: [] }; }
+        list.items.push('<li>' + inline((ul || ol)[1]) + '</li>');
+        continue;
+      }
+
+      flushList();
+      para.push(t);
     }
-
-    if (partnerMine) {
-      return '<p class="pair done">Round trip \u00b7 you have the '
-        + otherWord + '</p>';
-    }
-
-    if (mine) {
-      return '<p class="pair done">Round trip \u00b7 you have the ' + thisWord
-        + ', someone else has the ' + otherWord + '</p>';
-    }
-
-    return '<p class="pair done">Round trip \u00b7 both halves are covered</p>';
+    flushAll();
+    return out.join('\n');
   }
 
-  function instrBlock(n, mine) {
-    var t = String(n.instructions || '').trim();
-    if (!t) return '';
-    var label = mine ? 'What you need to know' : 'Details';
-    return '<details class="instr"' + (mine ? ' open' : '') + '>'
-      + '<summary>' + label + '</summary>'
-      + '<p class="text">' + esc(t) + '</p></details>';
-  }
-
-  function row(n){
-    var c = catBy[n.category] || catBy.other;
-    var filled = n.status === 'FILLED';
-    var mine = filled && n.is_mine === true;
-    var act;
-    if (filled) {
-      act = '<p class="vol">Covered by <strong>' + esc(mine ? 'you' : (n.volunteer_name || 'a friend')) + '</strong>'
-          + (mine ? '<span class="yours">yours</span>' : '') + '</p>'
-          + (mine ? '<button class="btn ghost" data-action="release" data-id="'+n.id+'">Can\'t make it anymore? Free up this slot</button>' : '');
-    } else {
-      var b = busy === n.id;
-      act = '<button class="btn primary" data-action="claim" data-id="'+n.id+'"'+(b?' disabled':'')+'>'
-          + (b ? 'Signing you up…' : 'I can help') + '</button>';
-    }
-    var orphan = !filled && n.partner_id && n.partner_status === 'FILLED';
-    return '<div class="row '+(filled?'filled':'')+' '+(mine?'mine':'')
-      + (orphan ? ' orphan' : '')+'" style="--cat-color:'+c.color+'">'
-      + '<div class="when">'+fmtD(n.date)+'<span class="time">'+esc(n.start_time)+'–'+esc(n.end_time)+'</span></div>'
-      + '<div class="bd"><p class="ttl">'+esc(n.title)
-      +   ((newIds && newIds[n.id] && n.status === 'OPEN')
-            ? '<span class="newtag">New</span>' : '')+'</p>'
-      + (n.location ? '<p class="loc">'+esc(n.location)+'</p>' : '')
-      + pairLine(n)
-      + instrBlock(n, mine)
-      + act + '</div></div>';
-  }
-
-  function inviteCard(n){
-    var c = function(k){ return copiedKey===k ? '<span class="copied">Copied</span>' : ''; };
-    return '<div class="invite"><h4>'+esc(n.title)+' — '+esc(first(n.volunteer_name))+'</h4>'
-      + '<p class="meta">'+fmtL(n.date)+', '+esc(n.start_time)+'–'+esc(n.end_time)+'</p>'
-      + '<div class="field"><label>Add as attendee'+c('e'+n.id)+'</label>'
-      + '<input class="copyline" readonly value="'+esc(n.volunteer_email)+'" data-action="copy" data-key="e'+n.id+'" data-copy="'+esc(n.volunteer_email)+'" /></div>'
-      + '<div class="field"><label>Event body'+c('b'+n.id)+'</label>'
-      + '<textarea readonly data-action="copy" data-key="b'+n.id+'" data-copy="'+esc(inviteBody(n))+'">'+esc(inviteBody(n))+'</textarea></div>'
-      + '<button class="btn primary small" data-action="invited" data-id="'+n.id+'">Mark invite sent</button></div>';
-  }
-
-  function render(){
-    modeBtn.textContent = coord ? 'Friend view' : 'Coordinator';
-    modeBtn.className = 'modetoggle' + (coord ? ' on' : '');
+  // ---------- render ----------
+  function notSignedIn() {
+    sub.textContent = '';
     content.className = '';
-    var banner = notice ? '<div class="banner">'+esc(notice)+'</div>' : '';
+    content.innerHTML = '<div class="gate"><h2>Sign in on the main page first</h2>'
+      + '<p>Open the signup page and add your name and email. Once you are approved, '
+      + 'her updates appear here.</p>'
+      + '<a class="btn" href="/">Go to the signup page</a></div>';
+  }
 
-    if (coord) {
-      h1.textContent = 'Coordinator';
-      if (!coordData) {
-        sub.textContent = '';
-        content.innerHTML = banner + '<div class="gate"><h2>Coordinator access</h2>'
-          + '<p>Enter the passphrase to see volunteer contact details and pending invites.</p>'
-          + '<input type="password" id="c-pass" placeholder="Passphrase" />'
-          + '<button class="btn primary" data-action="unlock">Unlock</button></div>';
-        return;
-      }
-      sub.textContent = 'Claims waiting on an Outlook invite, and everyone who has registered.';
-      var all = coordData.needs || [], vols = coordData.volunteers || [];
-      var pend = all.filter(function(n){ return n.status==='FILLED' && !n.invited; });
-      var openOnes = all.filter(function(n){ return n.status === 'OPEN'; });
-      var claimed  = all.filter(function(n){ return n.status === 'FILLED'; });
+  function notApproved(requested) {
+    sub.textContent = '';
+    content.className = '';
+    content.innerHTML = '<div class="gate"><h2>Not yet</h2>'
+      + '<p>' + (requested
+          ? 'Your request is with ' + esc(APPROVER) + '. Once it is approved, her updates appear here.'
+          : 'Reading Tracey\u2019s updates needs approval first. You can ask from the signup page.')
+      + '</p><a class="btn" href="/">Back to the signup page</a></div>';
+  }
 
-      // Everyone registered, offered as suggestions so assigning a
-      // returning friend is a tap rather than retyping their address.
-      var roster = '<datalist id="roster">' + vols.map(function(v){
-        return '<option value="' + esc(v.email) + '">' + esc(v.name) + '</option>';
-      }).join('') + '</datalist>';
-
-      function assignCard(n) {
-        // A leg whose other half is already covered: someone is relying
-        // on this being filled.
-        var orphaned = n.pair_key && all.some(function(o){
-          return o.pair_key === n.pair_key && o.id !== n.id && o.status === 'FILLED';
-        });
-        return '<div class="assign"' + (orphaned
-            ? ' style="border-color:var(--clay);box-shadow:0 0 0 1px var(--clay)"' : '') + '>'
-          + '<h4>' + esc(n.title) + '</h4>'
-          + (orphaned ? '<p class="ameta" style="color:var(--clay);font-weight:600">'
-                        + 'The other half of this trip is covered \u2014 she has no way '
-                        + (n.leg === 'out' ? 'there' : 'home') + '</p>' : '')
-          + '<p class="ameta">' + fmtL(n.date) + ', ' + esc(n.start_time) + '</p>'
-          + '<div class="arow">'
-          +   '<input type="text" id="an-' + n.id + '" placeholder="Name" autocapitalize="words" />'
-          +   '<input type="email" id="ae-' + n.id + '" placeholder="Email" list="roster" autocapitalize="none" inputmode="email" />'
-          + '</div>'
-          + '<div class="field-err" id="aerr-' + n.id + '"></div>'
-          + '<div class="postbtns">'
-          +   '<button class="btn primary small" data-action="assign" data-id="' + n.id + '">Sign them up</button>'
-          +   '<button class="danger" data-action="remove" data-id="' + n.id + '">Remove</button>'
-          + '</div></div>';
-      }
-
-      function claimedCard(n) {
-        return '<div class="assign">'
-          + '<h4>' + esc(n.title) + '</h4>'
-          + '<p class="ameta">' + fmtL(n.date) + ', ' + esc(n.start_time) + '<br>'
-          +   '<strong>' + esc(n.volunteer_name || '') + '</strong>'
-          +   (n.volunteer_email ? ' \u00b7 ' + esc(n.volunteer_email) : '')
-          +   (n.invited ? ' \u00b7 invite sent' : ' \u00b7 invite not sent yet') + '</p>'
-          + (String(n.instructions || '').trim()
-              ? '<details class="instr"><summary>Details</summary>'
-                + '<p class="text">' + esc(String(n.instructions).trim()) + '</p></details>'
-              : '')
-          + '<button class="btn ghost" data-action="unassign" data-id="' + n.id + '">They cancelled \u2014 free this up</button>'
-          + '<div class="postbtns" style="margin-top:8px">'
-          +   '<button class="danger" data-action="remove" data-id="' + n.id + '">Remove this need</button>'
-          + '</div></div>';
-      }
-
-      var pending = coordData.pending || [];
-
-      function pendingRow(p) {
-        return '<div class="tierrow">'
-          + '<div class="who"><strong>' + esc(p.name) + '</strong>'
-          +   '<div class="em">' + esc(p.email) + '</div></div>'
-          + '<div class="tierbtns">'
-          +   '<button data-action="settier" data-email="' + esc(p.email) + '" data-level="approved">Approve</button>'
-          +   '<button data-action="settier" data-email="' + esc(p.email) + '" data-level="none">Not now</button>'
-          + '</div></div>';
-      }
-
-      // Three tiers. Close is dormant for now \u2014 it shows the same
-      // journal plus anything Tracey keeps to a smaller circle. Nobody
-      // on a lower tier sees any sign that those posts exist.
-      function tierRow(p) {
-        var lvl = p.access || 'none';
-        function b(level, label) {
-          return '<button data-action="settier" data-email="' + esc(p.email) + '"'
-            + ' data-level="' + level + '"'
-            + (lvl === level ? ' class="on"' : '') + '>' + label + '</button>';
-        }
-        var reading = lvl === 'approved' || lvl === 'close';
-        return '<div class="tierrow">'
-          + '<div class="who"><strong>' + esc(p.name) + '</strong>'
-          +   '<div class="em">' + esc(p.email)
-          +   (p.phone ? ' \u00b7 ' + esc(p.phone) : '') + '</div></div>'
-          + '<div class="tierbtns">'
-          +   b('none', 'No') + b('approved', 'Updates') + b('close', 'Close')
-          +   (reading
-                ? '<button data-action="resend" data-email="' + esc(p.email) + '"'
-                  + ' data-name="' + esc(p.name) + '">Email link</button>'
-                : '')
-          + '</div></div>';
-      }
-
-      function postRow(p) {
-        var vis = p.visibility || 'approved';
-        var text = String(p.body || '').replace(/[#*>_`\-]/g, ' ')
-                     .replace(/\s+/g, ' ').trim();
-        var excerpt = text.length > 150 ? text.slice(0, 150) + '\u2026' : text;
-        function b(level, label) {
-          return '<button data-action="setvis" data-id="' + p.id + '"'
-            + ' data-vis="' + level + '"'
-            + (vis === level ? ' class="on"' : '') + '>' + label + '</button>';
-        }
-        return '<div class="postrow">'
-          + '<h4>' + esc(p.title) + '</h4>'
-          + '<p class="pmeta">' + fmtL(String(p.published).slice(0, 10))
-          +   (vis === 'hidden' ? ' \u00b7 hidden from everyone'
-              : vis === 'close' ? ' \u00b7 close circle only'
-              : ' \u00b7 everyone approved') + '</p>'
-          + (excerpt ? '<p class="excerpt">' + esc(excerpt) + '</p>' : '')
-          + '<div class="postbtns">'
-          +   b('approved', 'Everyone') + b('close', 'Close') + b('hidden', 'Hide')
-          +   '<button class="danger" data-action="delpost" data-id="' + p.id + '">Delete</button>'
-          + '</div></div>';
-      }
-
-      var pastCount = coordData.past_count || 0;
-      var pastBar = '<div class="pastbar"><span>'
-        + (showPast
-            ? 'Showing everything, including what has already happened.'
-            : (pastCount
-                ? ('Showing what is still ahead. ' + pastCount + ' finished need'
-                   + (pastCount === 1 ? '' : 's') + ' hidden.')
-                : 'Showing what is still ahead.'))
-        + '</span><button data-action="togglepast">'
-        + (showPast ? 'Hide past' : 'Show past') + '</button></div>';
-
-      // Asking everyone is the only thing here that reaches the whole
-      // circle at once, so it says when it last went out.
-      var stillOpen = all.filter(function(n){
-        return n.status === 'OPEN' && n.date >= todayStr(); }).length;
-      var lastSent = coordData.last_broadcast || '';
-      var askBar = '<div class="askbar"><span>'
-        + (stillOpen
-            ? stillOpen + (stillOpen === 1 ? ' thing is' : ' things are') + ' still open. '
-              + (lastSent ? 'Last asked ' + agoWords(lastSent) + '.' : 'Nobody has been asked yet.')
-            : 'Everything is covered.')
-        + '</span>'
-        + (stillOpen
-            ? '<button data-action="askall">Ask everyone</button>'
-            : '')
-        + '</div>';
-
-      content.innerHTML = banner
-        + (showHelp ? helpPanel() : '')
-        + askBar
-        + pastBar
-        + '<div class="section-title">Needs an invite</div>'
-        + '<div class="section-sub">' + (pend.length
-            ? 'Optional. Changes and cancellations reach these friends on their own \u2014 '
-              + 'adding them to the Outlook event as well means you see their RSVP.'
-            : '') + '</div>'
-        + (pend.length ? pend.map(inviteCard).join('') : '<div class="empty">All caught up. Every claimed need has an invite out.</div>')
-        + '<div class="section-title">Sign someone up</div>'
-        + '<div class="section-sub">' + (openOnes.length ? 'For friends who phone rather than use the page. They get the same calendar invitation.' : '') + '</div>'
-        + roster
-        + (openOnes.length ? openOnes.map(assignCard).join('') : '<div class="empty">Nothing open right now.</div>')
-        + '<div class="section-title">Covered</div>'
-        + '<div class="section-sub">' + (claimed.length ? 'Free one up here if someone cancels by phone.' : '') + '</div>'
-        + (claimed.length ? claimed.map(claimedCard).join('') : '<div class="empty">Nothing claimed yet.</div>')
-        + '<div class="section-title">Tracey\u2019s posts</div>'
-        + '<div class="section-sub">' + ((posts && posts.length)
-            ? 'Hide one if she reposts a correction. Nobody is told a post exists that they cannot see.'
-            : 'She has not sent anything yet.') + '</div>'
-        + ((posts && posts.length) ? posts.map(postRow).join('')
-            : '<div class="empty">No posts yet.</div>')
-        + '<div class="section-title">Waiting to read her updates</div>'
-        + '<div class="section-sub">' + (pending.length
-            ? 'They have asked to read Tracey\u2019s journey. Nobody sees the journal until you approve.'
-            : '') + '</div>'
-        + (pending.length ? pending.map(pendingRow).join('')
-            : '<div class="empty">No one waiting.</div>')
-        + '<div class="section-title">Registered friends</div>'
-        + '<div class="section-sub">'+vols.length+' '+(vols.length===1?'person has':'people have')+' added themselves. '
-        + 'Approved friends can read her updates; nobody is told which level they are on.</div>'
-        + (vols.length ? vols.map(tierRow).join('')
-          : '<div class="empty">Nobody registered yet.</div>');
-      return;
-    }
-
-    h1.textContent = 'For Tracey';
-    if (!me) {
+  function showPosts(posts) {
+    content.className = '';
+    if (!posts.length) {
       sub.textContent = '';
-      content.innerHTML = banner
-        + '<div class="welcome">'
-        + '<p>Tracey is working her way back, and a lot of you have asked how you can help. '
-        + 'This page is the answer.</p>'
-        + '<p>Everything she needs is listed here — rides to rehab, walks, company, errands, '
-        + 'a hand with Izzy. Take whatever fits your week. You will see what is already covered, '
-        + 'so nothing gets doubled up and nobody has to coordinate.</p>'
-        + '<p>Thank you. It matters more than you know.</p></div>'
-        + (showHelp ? helpPanel() : '')
-        + gate();
+      content.innerHTML = '<div class="status">Nothing here yet. '
+        + 'When Tracey writes something, it will appear on this page.</div>';
       return;
     }
-    sub.textContent = 'Pick anything you can take. Everyone sees the same list, so nothing gets doubled up.';
-
-    var list = cat === 'all' ? needs : needs.filter(function(n){ return n.category === cat; });
-    var open = list.filter(function(n){ return n.status === 'OPEN'; });
-    var cov  = list.filter(function(n){ return n.status === 'FILLED'; });
-    var chips = [{key:'all',label:'All'}].concat(CATS).map(function(c){
-      return '<button class="chip '+(cat===c.key?'active':'')+'" data-action="filter" data-cat="'+c.key+'">'+c.label+'</button>';
+    sub.textContent = 'Her own words, newest first.';
+    content.innerHTML = posts.map(function (p) {
+      return '<div class="post">'
+        + '<h2>' + esc(p.title) + '</h2>'
+        + '<p class="when">' + fmtWhen(p.published) + '</p>'
+        + '<div class="body">' + markdown(p.body) + '</div>'
+        + '</div>';
     }).join('');
+  }
 
-    // The welcome note earns its place once, on the registration screen.
-    // A returning friend gets the one-line subtitle under the title and
-    // nothing else, because they came for the list.
+  async function load() {
+    if (!me || !me.email) { notSignedIn(); return; }
 
-    // Beyond a fortnight, a daily series would bury everything. Friends
-    // can see the rest, they just have to ask for it.
-    var HORIZON_DAYS = 14;
-    var cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() + HORIZON_DAYS);
-    var cutoffStr = cutoff.toISOString().slice(0, 10);
+    var acc = null;
+    try {
+      var ar = await db.rpc('my_access', { p_email: me.email });
+      if (!ar.error) acc = ar.data;
+    } catch (e) {}
 
-    var openSoon = showAll ? open : open.filter(function(n){ return n.date <= cutoffStr; });
-
-    // A half-covered appointment is the most urgent thing on the page:
-    // somebody is already relying on one leg. Those sort first, and the
-    // card is marked.
-    openSoon = openSoon.slice().sort(function(a, b){
-      var ao = (a.partner_id && a.partner_status === 'FILLED') ? 0 : 1;
-      var bo = (b.partner_id && b.partner_status === 'FILLED') ? 0 : 1;
-      if (ao !== bo) return ao - bo;
-      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
-      return 0;
-    });
-    var hiddenCount = open.length - openSoon.length;
-
-    var moreLine = '';
-    if (hiddenCount > 0 && !showAll) {
-      moreLine = '<div class="moreline"><button data-action="showall">'
-        + 'Show ' + hiddenCount + ' more further ahead</button></div>';
-    } else if (showAll && open.length > 0) {
-      moreLine = '<div class="moreline"><button data-action="showall">'
-        + 'Just the next two weeks</button></div>';
+    var level = acc ? acc.access : 'none';
+    if (level !== 'approved' && level !== 'close') {
+      notApproved(acc && acc.requested);
+      return;
     }
 
-    // How many of the things they can act on are new. Counting the whole
-    // list would include things already covered, which is not news they
-    // can do anything with.
-    var newOpen = newIds ? open.filter(function(n){ return newIds[n.id]; }).length : 0;
-    var newBar = newOpen
-      ? '<div class="newbar">' + newOpen
-        + (newOpen === 1 ? ' new thing' : ' new things')
-        + ' since you were last here.</div>'
-      : '';
+    var r = await db.rpc('list_posts', { p_email: me.email });
 
-    content.innerHTML = banner
-      + (showHelp ? helpPanel() : '')
-      + addHomeCard()
-      + newBar
-      + '<div class="me"><span>Signed in as <strong>'+esc(me.name)+'</strong> \u00b7 '+esc(me.email)+'</span>'
-      + '<button class="btn link" data-action="editme">Change</button></div>'
-      + yoursBox()
-      + journeyButton()
-      + togetherLine()
-      + '<div class="chips">'+chips+'</div>'
-      + '<div class="section-title">Open needs</div>'
-      + '<div class="section-sub">'+(openSoon.length ? 'One tap signs you up \u2014 the invitation goes to your email.' : '')+'</div>'
-      + (openSoon.length ? openSoon.map(row).join('')
-          : '<div class="empty">Everything\u2019s covered right now. Check back soon, or see what\u2019s already handled below.</div>')
-      + moreLine
-      + '<div class="section-title">Already covered</div>'
-      + (cov.length ? cov.map(row).join('') : '<div class="empty">Nothing covered yet.</div>');
+    // Opening the page is reading it, as far as the badge is concerned —
+    // but give it a moment, so a stray tap and a bounce straight back
+    // does not silently clear the count.
+    setTimeout(function () {
+      try { db.rpc('mark_seen', { p_email: me.email, p_what: 'journal' }); } catch (e) {}
+    }, 5000);
+    if (r.error) {
+      content.className = 'status';
+      content.textContent = 'Could not load her updates just now. Please try again shortly.';
+      return;
+    }
+    showPosts(r.data || []);
   }
 
-  // Added to a home screen, iOS keeps the page frozen in memory rather
-  // than reloading it. Someone reopening the app days later would see
-  // whatever was on screen when they last closed it — a list that may
-  // be entirely out of date.
-  //
-  // Claiming is guarded at the database, so stale data cannot actually
-  // double-book anything. But being shown an old list and then told no
-  // is a poor way to find out.
-  async function refreshIfStale() {
+  // Reopened from a home screen icon, iOS may show this page exactly as
+  // it was left rather than loading it again. Fetch afresh when it comes
+  // back after a while.
+  var lastLoaded = 0;
+  function refreshIfStale() {
     if (document.visibilityState !== 'visible') return;
-    // A quick switch to another app and back does not need a round trip.
     if (Date.now() - lastLoaded < 45000) return;
-    // Nor should the list move while a question is on screen.
-    if (document.querySelector('.ask-bg')) return;
-    if (!me) return;
     lastLoaded = Date.now();
-    try {
-      if (coord) { await loadCoord(); } else { await loadNeeds(); }
-    } catch (e) { /* offline: leave what is on screen */ }
+    load();
   }
-
   // Between them these cover every way a page comes back:
   //   visibilitychange  app switcher, tab switch, screen unlock (iOS + Android)
   //   pageshow          restored from cache rather than loaded
@@ -1206,527 +260,43 @@
   //   resume            older Android webviews
   document.addEventListener('visibilitychange', refreshIfStale);
   window.addEventListener('pageshow', function (e) {
-    // persisted means it came back from the cache rather than loading.
     if (e.persisted) { lastLoaded = 0; refreshIfStale(); }
   });
   window.addEventListener('focus', refreshIfStale);
   document.addEventListener('resume', refreshIfStale);
-
-  // A tab left open and watched — someone who opens this in the morning
-  // and glances back after lunch — never fires any of the events above.
-  // A quiet check every three minutes keeps that honest.
-  //
-  // Skipped while a dialog is open, so the page cannot rearrange itself
-  // underneath someone who is part way through answering a question.
+  // A tab left open and watched fires none of the events above.
   setInterval(function () {
-    if (document.visibilityState !== 'visible') return;
-    if (document.querySelector('.ask-bg')) return;
-    refreshIfStale();
+    if (document.visibilityState === 'visible') refreshIfStale();
   }, 180000);
 
-  // Android fires this when the browser would have offered installation.
-  // Holding on to it lets the card trigger the real dialog. Safari never
-  // fires it, which is why the card falls back to instructions.
-  window.addEventListener('beforeinstallprompt', function (e) {
-    e.preventDefault();
-    installEvt = e;
-    render();
-  });
-
-  window.addEventListener('appinstalled', function () {
-    hideAdd = true;
-    render();
-  });
-
-  try { hideAdd = localStorage.getItem('tracey_hide_add') === '1'; } catch (e) {}
-
-  var helpBtn = document.getElementById('helpbtn');
-  helpBtn.addEventListener('click', function(){
-    showHelp = !showHelp;
-    helpBtn.className = 'modetoggle' + (showHelp ? ' on' : '');
-    helpBtn.textContent = showHelp ? 'Close help' : 'Help';
-    render();
-    window.scrollTo(0, 0);
-  });
-
-  modeBtn.addEventListener('click', function(){
-    coord = !coord; notice = '';
-    if (coord && !coordData) render(); else if (!coord) render(); else loadCoord();
-  });
-
-  document.getElementById('root').addEventListener('click', async function(e){
-    var el = e.target.closest('[data-action]'); if (!el) return;
-    var a = el.getAttribute('data-action'), id = el.getAttribute('data-id');
-
-    if (a === 'copy') {
-      var t = el.getAttribute('data-copy');
-      try { el.select && el.select(); } catch(x){}
-      if (navigator.clipboard) navigator.clipboard.writeText(t).then(function(){
-        copiedKey = el.getAttribute('data-key'); render(); }).catch(function(){});
-      return;
-    }
-    if (a === 'filter') { cat = el.getAttribute('data-cat'); render(); return; }
-    if (a === 'editme') { me = null; lsSet('tracey_me', null); render(); return; }
-
-    if (a === 'unlock') {
-      pass = (document.getElementById('c-pass').value || '').trim();
-      if (!pass) return;
-      await loadCoord(); return;
-    }
-
-    if (a === 'register') {
-      var fEl = document.getElementById('r-first');
-      var lEl = document.getElementById('r-last');
-      var eEl = document.getElementById('r-email');
-      var err = document.getElementById('r-err');
-
-      var first = (fEl.value || '').trim();
-      var last  = (lEl.value || '').trim();
-      var email = (eEl.value || '').trim().toLowerCase();
-      var phone = (document.getElementById('r-phone').value || '').trim();
-
-      // Typing a whole name into the first box is a common slip. Move the
-      // surplus across rather than making anyone retype.
-      if (!last && first.indexOf(' ') > 0) {
-        var parts = first.split(/\s+/);
-        first = parts.shift();
-        last  = parts.join(' ');
-        fEl.value = first;
-        lEl.value = last;
-      }
-
-      function fail(el, slot, msg) {
-        document.getElementById(slot).textContent = msg;
-        el.classList.add('bad');
-      }
-      function clearField(el, slot) {
-        document.getElementById(slot).textContent = '';
-        el.classList.remove('bad');
-      }
-      clearField(fEl, 'e-first'); clearField(lEl, 'e-last'); clearField(eEl, 'e-email');
-      err.style.display = 'none';
-
-      var ok = true;
-      if (first.length < 2) { fail(fEl, 'e-first', 'Please give your first name.'); ok = false; }
-      if (last.length < 2)  { fail(lEl, 'e-last', 'Last name too, so Tracey knows which friend this is.'); ok = false; }
-      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-        fail(eEl, 'e-email', 'An email address that can receive calendar invitations.'); ok = false;
-      }
-      if (!ok) return;
-
-      // Stored as one string, shown in full to friends and coordinators.
-      var name = first + ' ' + last;
-      var r = await db.rpc('register_volunteer', { p_email: email, p_name: name, p_phone: phone });
-      if (r.error) { err.textContent = 'Could not save that just now. Check your connection and try again.'; err.style.display='block'; return; }
-      me = { name: name, email: email, phone: phone };
-      // Welcome back message if we already knew this address.
-      try {
-        var known = await db.rpc('find_volunteer', { p_email: email });
-        if (known && known.data && known.data.name) { me.name = name || known.data.name; }
-      } catch (e) {}
-      lsSet('tracey_me', me);
-      await loadNeeds(); return;
-    }
-
-    if (a === 'claim') {
-      if (!me || busy) return;
-      busy = id; render();
-      var r = await db.rpc('claim_need', { p_id: id, p_email: me.email, p_name: me.name });
-      busy = null;
-      if (r.error) { notice = 'Could not sign you up just now. Please try again.'; }
-      else if (r.data === true) {
-        notice = '';
-        notify(id, 'claimed');
-
-        // They have engaged with the list, so the markers have done
-        // their job. Cleared on screen as well as in the database —
-        // otherwise the thing they just claimed keeps announcing itself
-        // as new until the page is reloaded.
-        try { db.rpc('mark_seen', { p_email: me.email, p_what: 'needs' }); } catch (e) {}
-        newIds = {};
-
-        // The moment they have said yes to one leg is the moment they
-        // are thinking about the day. Asking now catches most of the
-        // cases where a return trip would otherwise be left open.
-        var claimedNeed = needs.filter(function(x){ return x.id === id; })[0];
-        if (claimedNeed && claimedNeed.partner_id && claimedNeed.partner_status === 'OPEN') {
-          var otherWord = claimedNeed.leg === 'out' ? 'ride home' : 'ride there';
-          var takeBoth = await askYesNo(
-            'Can you do the ' + otherWord + ' too?',
-            'It is at ' + (claimedNeed.partner_time || '')
-              + ', and nobody has taken it yet. Without it she has no way '
-              + (claimedNeed.leg === 'out' ? 'home' : 'there') + '.',
-            'Yes, I will do both',
-            'No, just the one');
-
-          if (takeBoth) {
-            var pr = await db.rpc('claim_need', {
-              p_id: claimedNeed.partner_id, p_email: me.email, p_name: me.name
-            });
-            if (!pr.error && pr.data === true) {
-              notify(claimedNeed.partner_id, 'claimed');
-            } else {
-              notice = 'Someone else took the ' + otherWord + ' just then.';
-            }
-          }
-        }
-
-        // Signing up for the first time also asks to read her updates,
-        // so nobody has to think of requesting it.
-        if (access && access.access === 'none' && !access.requested) {
-          try {
-            var jr2 = await db.rpc('request_access', { p_email: me.email });
-            if (!jr2.error) {
-              access = { access: 'none', requested: true };
-              if (jr2.data && jr2.data.new) notifyAccess(me.email, me.name);
-            }
-          } catch (e) {}
-        }
-      }
-      else { notice = 'Someone else just took that one. Here is the updated list.'; }
-      await loadNeeds(); return;
-    }
-
-    if (a === 'release') {
-      var thisNeed = needs.filter(function(x){ return x.id === id; })[0];
-      var alsoHavePartner = thisNeed && thisNeed.partner_id
-        && thisNeed.partner_is_mine === true;
-
-      var sure = await askYesNo(
-        'Free up this slot?',
-        'It goes back on the list for someone else, and Tracey is told.',
-        'Yes, free it up',
-        'No, keep it');
-      if (!sure) return;
-
-      var rr = await db.rpc('release_need', { p_id: id, p_email: me.email });
-      if (rr.error || rr.data !== true) {
-        notice = 'Could not release that. Please refresh and try again.';
-        await loadNeeds(); return;
-      }
-      notice = '';
-      notify(id, 'released');
-
-      // Someone who cannot make the appointment usually cannot do either
-      // journey. Asking mirrors the question on the way in.
-      if (alsoHavePartner) {
-        var otherLeg = thisNeed.leg === 'out' ? 'ride home' : 'ride there';
-        var alsoDrop = await askYesNo(
-          'You also have the ' + otherLeg,
-          'Would you like to free that up as well? If you keep it, she will '
-            + 'still need someone for the '
-            + (thisNeed.leg === 'out' ? 'journey there' : 'journey home') + '.',
-          'Yes, free up both',
-          'No, I can still do that one');
-
-        if (alsoDrop) {
-          var pr2 = await db.rpc('release_need', {
-            p_id: thisNeed.partner_id, p_email: me.email
-          });
-          if (!pr2.error && pr2.data === true) {
-            notify(thisNeed.partner_id, 'released');
-          } else {
-            notice = 'Freed this one, but could not free the ' + otherLeg + '.';
-          }
-        }
-      }
-
-      await loadNeeds(); return;
-    }
-
-    if (a === 'hideadd') {
-      e.stopPropagation();
-      hideAdd = true;
-      try { localStorage.setItem('tracey_hide_add', '1'); } catch (err) {}
-      render();
-      return;
-    }
-
-    if (a === 'addhome') {
-      // Android: the browser will show its own dialog.
-      if (installEvt) {
-        installEvt.prompt();
-        try {
-          var choice = await installEvt.userChoice;
-          if (choice && choice.outcome === 'accepted') hideAdd = true;
-        } catch (err) {}
-        installEvt = null;
-        render();
-        return;
-      }
-
-      // iPhone and iPad: there is no dialog to ask for. Show where the
-      // option actually lives, since almost nobody has found it.
-      await showHowTo();
-      return;
-    }
-
-    if (a === 'journey-ask') {
-      var wants = await askYesNo(
-        'Ask to read Tracey\u2019s journey?',
-        'She writes about how her recovery is going. '
-          + APPROVER + ' decides who can read it.',
-        'Yes, ask for me',
-        'Not now');
-      if (!wants) return;
-      var jr = await db.rpc('request_access', { p_email: me.email });
-      if (jr.error) { notice = 'Could not send that just now. Please try again.'; render(); return; }
-      access = { access: 'none', requested: true };
-      if (jr.data && jr.data.new) notifyAccess(me.email, me.name);
-      window.alert('Asked. ' + APPROVER + ' will let you in shortly.');
-      render();
-      return;
-    }
-
-    if (a === 'journey-pending') {
-      window.alert('Your request is with ' + APPROVER + '. You will be able to read her updates once it is approved.');
-      return;
-    }
-
-    if (a === 'journal') {
-      window.location.href = '/journal';
-      return;
-    }
-
-    if (a === 'showall') {
-      showAll = !showAll;
-      render();
-      return;
-    }
-
-    if (a === 'askall') {
-      var howMany = (coordData.volunteers || []).length;
-      var openNow = (coordData.needs || []).filter(function(n){
-        return n.status === 'OPEN' && n.date >= todayStr(); }).length;
-      var last = coordData.last_broadcast || '';
-
-      var go = await askYesNo(
-        'Email all ' + howMany + (howMany === 1 ? ' friend?' : ' friends?'),
-        'Each of them gets a list of the ' + openNow
-          + (openNow === 1 ? ' thing' : ' things') + ' still open, with the link. '
-          + (last ? 'You last did this ' + agoWords(last) + '. ' : '')
-          + 'Nobody sees anyone else\u2019s address.',
-        'Yes, ask everyone',
-        'Not now');
-      if (!go) return;
-
-      el.disabled = true;
-      el.textContent = 'Sending\u2026';
-
-      var result = null;
-      try {
-        var res = await fetch('/api/ask-everyone', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pass: pass })
-        });
-        result = res.ok ? await res.json() : null;
-      } catch (err) { result = null; }
-
-      el.disabled = false;
-      el.textContent = 'Ask everyone';
-
-      if (!result) {
-        notice = 'Could not send those just now. Please try again.';
-      } else if (result.reason) {
-        notice = result.reason;
-      } else {
-        notice = 'Sent to ' + result.sent
-          + (result.sent === 1 ? ' friend' : ' friends')
-          + (result.failed && result.failed.length
-              ? '. Could not reach: ' + result.failed.join(', ') : '.');
-      }
-      await loadCoord();
-      return;
-    }
-
-    if (a === 'togglepast') {
-      showPast = !showPast;
-      await loadCoord();
-      window.scrollTo(0, 0);
-      return;
-    }
-
-    if (a === 'remove') {
-      if (!window.confirm(
-        'Remove this need from the page for good?\n\n' +
-        'Anyone who signed up will be emailed to say it is cancelled.')) return;
-
-      el.disabled = true;
-
-      // Tell the volunteer before deleting the row, so the function can look
-      // the details up itself rather than trusting anything sent from here.
-      var told = null;
-      var stillOnInvite = false;
-      try {
-        var cres = await fetch('/api/notify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: id, action: 'cancelled' })
-        });
-        if (cres.ok) {
-          var cdata = await cres.json();
-          told = cdata.told;
-          stillOnInvite = cdata.was_invited === true;
-        }
-      } catch (e) { /* removal should not depend on the email */ }
-
-      var rr = await db.rpc('remove_need', { p_pass: pass, p_id: id });
-      el.disabled = false;
-
-      if (rr.error || !rr.data || rr.data.ok !== true) {
-        notice = 'Could not remove that. Please try again.'; render(); return;
-      }
-
-      if (rr.data.was_claimed_by) {
-        window.alert(
-          told
-            ? (rr.data.was_claimed_by + ' has been emailed to say it is cancelled.'
-               + (stillOnInvite
-                   ? '\n\nThey are also on the Outlook invite \u2014 cancel that '
-                     + 'event in Outlook so it leaves their calendar.'
-                   : ''))
-            : ('Removed, but ' + rr.data.was_claimed_by + ' could not be emailed. '
-               + 'Worth telling them directly.'));
-      }
-      await loadCoord();
-      return;
-    }
-
-    if (a === 'setvis') {
-      var vis = el.getAttribute('data-vis');
-      el.disabled = true;
-      var vr = await db.rpc('set_post_visibility', { p_pass: pass, p_id: id, p_visibility: vis });
-      el.disabled = false;
-      if (vr.error || !vr.data || vr.data.ok !== true) {
-        notice = 'Could not change that. Please try again.'; render(); return;
-      }
-      await loadCoord();
-      return;
-    }
-
-    if (a === 'delpost') {
-      if (!window.confirm('Delete this post for good? Hiding it keeps it in case she changes her mind.')) return;
-      var dr = await db.rpc('delete_post', { p_pass: pass, p_id: id });
-      if (dr.error || !dr.data || dr.data.ok !== true) {
-        notice = 'Could not delete that. Please try again.'; render(); return;
-      }
-      await loadCoord();
-      return;
-    }
-
-    if (a === 'settier') {
-      var em = el.getAttribute('data-email');
-      var lvl = el.getAttribute('data-level');
-
-      // What they had before, so a friend already reading is not emailed
-      // again just because you moved them between levels.
-      var before = (coordData.volunteers || []).filter(function(v){
-        return v.email === em; })[0];
-      var wasReading = before && (before.access === 'approved' || before.access === 'close');
-      var name = before ? before.name : '';
-
-      el.disabled = true;
-      var sr = await db.rpc('set_access', { p_pass: pass, p_email: em, p_level: lvl });
-      el.disabled = false;
-      if (sr.error || !sr.data || sr.data.ok !== true) {
-        notice = 'Could not change that. Please try again.'; render(); return;
-      }
-
-      // Newly let in: tell them. They asked, and nothing else would.
-      if (!wasReading && (lvl === 'approved' || lvl === 'close')) {
-        notifyGranted(em, name, false);
-      }
-      await loadCoord();
-      return;
-    }
-
-    if (a === 'resend') {
-      var rem = el.getAttribute('data-email');
-      var rn = el.getAttribute('data-name') || '';
-      el.disabled = true;
-      el.textContent = 'Sending…';
-      var ok = await notifyGranted(rem, rn, true);
-      el.disabled = false;
-      el.textContent = ok ? 'Sent' : 'Try again';
-      setTimeout(function(){ el.textContent = 'Email link'; }, 2500);
-      return;
-    }
-
-    if (a === 'assign') {
-      var nEl = document.getElementById('an-' + id);
-      var eEl2 = document.getElementById('ae-' + id);
-      var slot = document.getElementById('aerr-' + id);
-      var nm = (nEl.value || '').trim();
-      var em = (eEl2.value || '').trim().toLowerCase();
-
-      slot.textContent = '';
-      if (nm.length < 2) { slot.textContent = 'Their name, so Tracey knows who is coming.'; return; }
-      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) {
-        slot.textContent = 'An email address that can receive the calendar invitation.'; return;
-      }
-
-      el.disabled = true;
-      el.textContent = 'Signing up\u2026';
-      var ar = await db.rpc('assign_need', {
-        p_pass: pass, p_id: id, p_name: nm, p_email: em, p_phone: ''
-      });
-      el.disabled = false;
-      el.textContent = 'Sign them up';
-
-      if (ar.error) { slot.textContent = 'Could not do that just now. Try again.'; return; }
-      if (!ar.data || ar.data.ok !== true) {
-        slot.textContent = (ar.data && ar.data.reason) ? ar.data.reason : 'Could not sign them up.';
-        return;
-      }
-      // Same notification and invitation path a friend's own claim takes.
-      notify(id, 'claimed');
-      await loadCoord();
-      return;
-    }
-
-    if (a === 'unassign') {
-      if (!window.confirm('Free this up so someone else can take it?')) return;
-      var ur = await db.rpc('unassign_need', { p_pass: pass, p_id: id });
-      if (ur.error || !ur.data || ur.data.ok !== true) {
-        notice = 'Could not free that up. Refresh and try again.';
-        render(); return;
-      }
-      notify(id, 'released');
-      if (ur.data.was_invited) {
-        window.alert('Freed up. They were already on the Outlook invite \u2014 remember to remove them from the event.');
-      }
-      await loadCoord();
-      return;
-    }
-
-    if (a === 'invited') {
-      var mi = await db.rpc('mark_invited', { p_id: id, p_pass: pass });
-      if (mi.error) { notice = 'Could not update that.'; render(); return; }
-      await loadCoord(); return;
-    }
-  });
-
-  loadNeeds().then(startPoll);
+  lastLoaded = Date.now();
+  load();
 
   // ---------- staying current ----------
   //
   // A page open since before a deploy keeps running old code, and no
-  // deploy can reach into it. So it asks instead: the build it started
-  // with, against the build being served now. When they differ, it
-  // reloads — but only at a safe moment, never mid-answer.
-  var myBuild = null;
+  // deploy can reach into it. So it asks about itself: a HEAD request
+  // to its own address returns an ETag that changes whenever this file
+  // changes. Different from the one it started with means the page in
+  // front of you is out of date.
+  //
+  // Asking about this page rather than about the deploy is the right
+  // question: a change to a function elsewhere does not require the
+  // person reading this to have anything reloaded.
+  var myTag = null;
   var needsReload = false;
 
   async function checkBuild() {
     try {
-      var res = await fetch('/api/version', { cache: 'no-store' });
+      var res = await fetch(window.location.pathname, {
+        method: 'HEAD', cache: 'no-store'
+      });
       if (!res.ok) return;
-      var v = await res.json();
-      if (!v || !v.build || v.build === 'unknown') return;
+      var tag = res.headers.get('etag') || res.headers.get('last-modified');
+      if (!tag) return;                    // nothing to compare: never fires
 
-      if (myBuild === null) { myBuild = v.build; return; }
-      if (v.build !== myBuild) needsReload = true;
+      if (myTag === null) { myTag = tag; return; }
+      if (tag !== myTag) needsReload = true;
     } catch (e) { /* offline: try again later */ }
   }
 
