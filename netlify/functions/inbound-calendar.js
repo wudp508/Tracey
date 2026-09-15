@@ -672,6 +672,28 @@ export default async (request) => {
         }
       }), { status: 502, headers: { 'Content-Type': 'application/json' } });
     }
+    // Tracey moved the time or the place, and somebody has already
+    // signed up for it. Send them the updated invitation so their
+    // calendar shifts with it — otherwise they keep whatever was
+    // forwarded when they claimed and turn up at the old time.
+    try {
+      const outcome = JSON.parse(text);
+      if (outcome && outcome.action === 'updated_while_claimed' && outcome.id) {
+        const site = (process.env.SITE_URL || '').replace(/\/+$/, '');
+        if (site) {
+          await fetch(site + '/api/notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: outcome.id, action: 'updated' })
+          });
+          console.log('Re-sent the invitation after a change:', outcome.id);
+        }
+      }
+    } catch (e) {
+      // The event is stored either way; the re-send is the bonus.
+      console.error('Could not re-send after the change', e);
+    }
+
     console.log('Ingested', uid, text);
     return new Response(text, {
       status: 200,
