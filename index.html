@@ -880,7 +880,8 @@
       + (orphan ? ' orphan' : '')+'" style="--cat-color:'+c.color+'">'
       + '<div class="when">'+fmtD(n.date)+'<span class="time">'+esc(n.start_time)+'–'+esc(n.end_time)+'</span></div>'
       + '<div class="bd"><p class="ttl">'+esc(n.title)
-      +   ((newIds && newIds[n.id]) ? '<span class="newtag">New</span>' : '')+'</p>'
+      +   ((newIds && newIds[n.id] && n.status === 'OPEN')
+            ? '<span class="newtag">New</span>' : '')+'</p>'
       + (n.location ? '<p class="loc">'+esc(n.location)+'</p>' : '')
       + pairLine(n)
       + instrBlock(n, mine)
@@ -1338,8 +1339,11 @@
         notify(id, 'claimed');
 
         // They have engaged with the list, so the markers have done
-        // their job. Cleared for everything, not just this one.
+        // their job. Cleared on screen as well as in the database —
+        // otherwise the thing they just claimed keeps announcing itself
+        // as new until the page is reloaded.
         try { db.rpc('mark_seen', { p_email: me.email, p_what: 'needs' }); } catch (e) {}
+        newIds = {};
 
         // The moment they have said yes to one leg is the moment they
         // are thinking about the day. Asking now catches most of the
@@ -1704,6 +1708,47 @@
   });
 
   loadNeeds().then(startPoll);
+
+  // ---------- staying current ----------
+  //
+  // A page open since before a deploy keeps running old code, and no
+  // deploy can reach into it. So it asks instead: the build it started
+  // with, against the build being served now. When they differ, it
+  // reloads — but only at a safe moment, never mid-answer.
+  var myBuild = null;
+  var needsReload = false;
+
+  async function checkBuild() {
+    try {
+      var res = await fetch('/api/version', { cache: 'no-store' });
+      if (!res.ok) return;
+      var v = await res.json();
+      if (!v || !v.build || v.build === 'unknown') return;
+
+      if (myBuild === null) { myBuild = v.build; return; }
+      if (v.build !== myBuild) needsReload = true;
+    } catch (e) { /* offline: try again later */ }
+  }
+
+  function reloadIfDue() {
+    if (!needsReload) return;
+    if (document.visibilityState !== 'visible') return;
+    // Never while a question is on screen or something is being typed.
+    if (document.querySelector('.ask-bg')) return;
+    var el = document.activeElement;
+    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
+    window.location.reload();
+  }
+
+  checkBuild();
+  setInterval(function () {
+    if (document.visibilityState !== 'visible') return;
+    checkBuild().then(reloadIfDue);
+  }, 180000);
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') checkBuild().then(reloadIfDue);
+  });
+
 })();
 </script>
 </body>
