@@ -344,6 +344,47 @@
 
   lastLoaded = Date.now();
   load();
+
+  // ---------- staying current ----------
+  //
+  // A page open since before a deploy keeps running old code, and no
+  // deploy can reach into it. So it asks instead: the build it started
+  // with, against the build being served now. When they differ, it
+  // reloads — but only at a safe moment, never mid-answer.
+  var myBuild = null;
+  var needsReload = false;
+
+  async function checkBuild() {
+    try {
+      var res = await fetch('/api/version', { cache: 'no-store' });
+      if (!res.ok) return;
+      var v = await res.json();
+      if (!v || !v.build || v.build === 'unknown') return;
+
+      if (myBuild === null) { myBuild = v.build; return; }
+      if (v.build !== myBuild) needsReload = true;
+    } catch (e) { /* offline: try again later */ }
+  }
+
+  function reloadIfDue() {
+    if (!needsReload) return;
+    if (document.visibilityState !== 'visible') return;
+    // Never while a question is on screen or something is being typed.
+    if (document.querySelector('.ask-bg')) return;
+    var el = document.activeElement;
+    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
+    window.location.reload();
+  }
+
+  checkBuild();
+  setInterval(function () {
+    if (document.visibilityState !== 'visible') return;
+    checkBuild().then(reloadIfDue);
+  }, 180000);
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') checkBuild().then(reloadIfDue);
+  });
+
 })();
 </script>
 </body>
