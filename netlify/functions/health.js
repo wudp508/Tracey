@@ -44,6 +44,16 @@ export default async () => {
   } = process.env;
 
   // ---------- configuration ----------
+
+  // Health failures go to whoever maintains this, not to Tracey. A
+  // broken webhook is not news she needs during recovery, and an alert
+  // she cannot act on is just noise in a week that has enough.
+  //
+  // ALERT_TO overrides; otherwise the first address in NOTIFY_TO, which
+  // is the coordinator's.
+  const alertTo = (process.env.ALERT_TO || '').trim()
+    || (NOTIFY_TO || '').split(',')[0].trim();
+
   const required = { SUPABASE_URL, SUPABASE_KEY, INGEST_TOKEN,
                      BREVO_API_KEY, NOTIFY_FROM, NOTIFY_TO,
                      SMTP_LOGIN, SMTP_KEY, TIMEZONE };
@@ -124,15 +134,6 @@ export default async () => {
   const healthy = failures.length === 0;
 
   // ---------- tell someone, but only when it matters ----------
-  // Health failures go to whoever maintains this, not to Tracey. A
-  // broken webhook is not news she needs during recovery, and an alert
-  // she cannot act on is just noise in a week that has enough.
-  //
-  // ALERT_TO overrides; otherwise the first address in NOTIFY_TO, which
-  // is the coordinator's.
-  const alertTo = (process.env.ALERT_TO || '').trim()
-    || (NOTIFY_TO || '').split(',')[0].trim();
-
   if (!healthy && BREVO_API_KEY && NOTIFY_FROM && alertTo) {
     const rows = failures.map(f =>
       `<li><strong>${f.name}</strong>${f.detail ? ' \u2014 ' + f.detail : ''}</li>`).join('');
