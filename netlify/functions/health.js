@@ -51,6 +51,10 @@ export default async () => {
   record('environment variables', missing.length === 0,
          missing.length ? 'missing: ' + missing.join(', ') : '');
 
+  // Not required. Without it, alerts go to the first NOTIFY_TO address.
+  record('alert recipient', !!alertTo,
+         alertTo ? '' : 'nowhere to send an alert');
+
   // ---------- the database, and the write path that failed before ----------
   let report = null;
   if (SUPABASE_URL && SUPABASE_KEY && INGEST_TOKEN) {
@@ -100,7 +104,8 @@ export default async () => {
       checkEndpoint(base, '/mine', [200]),
       checkEndpoint(base, '/preview.png', [200]),
       checkEndpoint(base, '/icon-180.png', [200]),
-      checkEndpoint(base, '/manifest.json', [200])
+      checkEndpoint(base, '/manifest.json', [200]),
+      checkEndpoint(base, '/api/ask-everyone', [405])
     ]);
   } else {
     record('site checks', false, 'SITE_URL not set, so pages were not checked');
@@ -119,7 +124,16 @@ export default async () => {
   const healthy = failures.length === 0;
 
   // ---------- tell someone, but only when it matters ----------
-  if (!healthy && BREVO_API_KEY && NOTIFY_FROM && NOTIFY_TO) {
+  // Health failures go to whoever maintains this, not to Tracey. A
+  // broken webhook is not news she needs during recovery, and an alert
+  // she cannot act on is just noise in a week that has enough.
+  //
+  // ALERT_TO overrides; otherwise the first address in NOTIFY_TO, which
+  // is the coordinator's.
+  const alertTo = (process.env.ALERT_TO || '').trim()
+    || (NOTIFY_TO || '').split(',')[0].trim();
+
+  if (!healthy && BREVO_API_KEY && NOTIFY_FROM && alertTo) {
     const rows = failures.map(f =>
       `<li><strong>${f.name}</strong>${f.detail ? ' \u2014 ' + f.detail : ''}</li>`).join('');
     const html = `
@@ -144,8 +158,8 @@ export default async () => {
         },
         body: JSON.stringify({
           sender: { email: NOTIFY_FROM, name: 'For Tracey' },
-          to: NOTIFY_TO.split(',').map(e => e.trim()).filter(Boolean).map(e => ({ email: e })),
-          subject: `For Tracey: ${failures.length} thing${failures.length === 1 ? '' : 's'} to look at`,
+          to: alertTo.split(',').map(e => e.trim()).filter(Boolean).map(e => ({ email: e })),
+          subject: `Signup page: ${failures.length} thing${failures.length === 1 ? '' : 's'} to look at`,
           htmlContent: html,
           textContent: failures.map(f => `- ${f.name}${f.detail ? ': ' + f.detail : ''}`).join('\n')
         })
