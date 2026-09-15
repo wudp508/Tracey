@@ -300,6 +300,73 @@ export default async (request) => {
     }
   }
 
+  // Someone has been let in to read Tracey's journal — or is being sent
+  // the link again. Without this they would only find out by happening
+  // to open the page and noticing the button had changed.
+  if (action === 'access-granted') {
+    const addr = (body.email || '').trim();
+    const who = (body.name || '').trim();
+    const again = body.again === true;
+    if (!addr) return new Response('Bad request', { status: 400 });
+
+    const first = who.split(/\s+/)[0] || 'there';
+    const link = (SITE_URL || '').replace(/\/+$/, '') + '/journal';
+
+    const html = `
+      <div style="font-family:-apple-system,Segoe UI,sans-serif;font-size:15px;
+                  line-height:1.6;color:#2B2321;max-width:460px">
+        <p style="font-size:17px;font-weight:600;margin:0 0 14px">
+          ${esc(first)}, you can read Tracey's updates</p>
+        <p style="margin:0 0 14px">${again
+          ? 'Here is the link again, in case it went astray.'
+          : 'She has been writing about how her recovery is going, and you are '
+            + 'welcome to read it.'}</p>
+        <p style="margin:0 0 16px">Open the signup page and tap
+          <strong>Tracey&rsquo;s journey</strong>, or go straight there:</p>
+        <p style="margin:0 0 18px">
+          <a href="${link}" style="color:#3D5A5B;font-weight:600">${esc(link)}</a></p>
+        <p style="margin:0;color:#6E6558;font-size:13.5px">
+          It is her own writing, shared with the people she has chosen. Please
+          keep the link to yourself.</p>
+      </div>`;
+
+    try {
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'accept': 'application/json',
+          'api-key': BREVO_API_KEY
+        },
+        body: JSON.stringify({
+          sender: { email: NOTIFY_FROM, name: 'For Tracey' },
+          to: [{ email: addr, name: who || undefined }],
+          replyTo: { email: NOTIFY_FROM },
+          subject: again
+            ? "Tracey's updates \u2014 the link again"
+            : "You can read Tracey's updates",
+          htmlContent: html,
+          textContent: `${first}, you can read Tracey's updates.\n\n`
+            + (again ? 'Here is the link again.\n\n'
+                     : 'She has been writing about how her recovery is going.\n\n')
+            + `${link}\n\n`
+            + `It is her own writing, shared with the people she has chosen. `
+            + `Please keep the link to yourself.`
+        })
+      });
+      if (!res.ok) {
+        console.error('Access-granted email failed:', res.status, await res.text());
+        return new Response('Send failed', { status: 502 });
+      }
+      return new Response(JSON.stringify({ sent: true, to: addr }), {
+        status: 200, headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (e) {
+      console.error('Brevo unreachable', e);
+      return new Response('Send failed', { status: 502 });
+    }
+  }
+
   if (!id || (action !== 'claimed' && action !== 'released' && action !== 'cancelled')) {
     return new Response('Bad request', { status: 400 });
   }
