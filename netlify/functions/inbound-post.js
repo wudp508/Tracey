@@ -47,16 +47,34 @@ function findMarkdown(payload) {
 // Mail clients append quoted history and signatures. Trim the common
 // markers so a reply-to-self does not drag the previous post along.
 function trimReplyChrome(text) {
+  // Mail clients append quoted history and signatures. Cutting them is
+  // worth doing — but cutting too eagerly loses the post, which is far
+  // worse than leaving a signature on the end.
+  //
+  // The dash rule is the one that bit: a signature delimiter is exactly
+  // two dashes on their own line, while three or more is a horizontal
+  // rule in markdown. Matching two-or-more truncated a document at its
+  // first section break.
   const cuts = [
-    /\n-{2,}\s*\n/,                       // signature delimiter
-    /\nOn .{0,80}\bwrote:\s*\n/,          // quoted reply header
-    /\n_{10,}\n/,                         // Outlook divider
-    /\nSent from my /i
+    /\n--[ \t]*\n/,                     // exactly two: the signature convention
+    /\nOn .{0,80}\bwrote:[ \t]*\n/,    // quoted reply header
+    /\n_{10,}\n/,                       // Outlook divider
+    /\nSent from my /i,
+    /\nGet Outlook for /i
   ];
+
   let out = text;
   for (const re of cuts) {
     const m = out.match(re);
-    if (m && m.index > 40) out = out.slice(0, m.index);
+    if (!m) continue;
+
+    const kept = out.slice(0, m.index);
+    // Never let a trim take most of the message. A match that early is
+    // far more likely to be part of the writing than a signature.
+    if (kept.trim().length < out.trim().length * 0.5) continue;
+    if (kept.trim().length < 200) continue;
+
+    out = kept;
   }
   return out.trim();
 }
