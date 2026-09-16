@@ -238,6 +238,15 @@
   .yours-box .w{color:var(--text-muted)}
   .together{font-size:.85rem;color:var(--text-muted);line-height:1.5;
     margin:0 0 20px;padding:0 2px}
+  .footline{text-align:center;padding:30px 0 6px;border-top:1px solid var(--border);
+    margin-top:26px}
+  .footline button{font-family:inherit;font-size:.82rem;font-weight:500;
+    background:transparent;border:none;color:var(--text-muted);
+    cursor:pointer;padding:8px;-webkit-tap-highlight-color:transparent}
+  .footline button:active{color:var(--text)}
+  .ask textarea{width:100%;font-family:inherit;font-size:16px;padding:11px 13px;
+    border:1px solid var(--border);border-radius:8px;background:#fff;
+    color:var(--text);min-height:110px;resize:vertical;margin-bottom:4px}
   .moreline{text-align:center;padding:18px 0 6px}
   .moreline button{font-family:inherit;font-size:.86rem;font-weight:600;
     background:var(--card-bg);border:1px solid var(--border);
@@ -306,6 +315,10 @@
   // Who decides on journal access. Set in config.js. All the wording
   // below avoids he/she, so any name reads correctly.
   var APPROVER = (cfg.APPROVER || 'the coordinator');
+  // Who to tell when something is wrong. Deliberately separate: Tracey
+  // decides who reads her journal, but she should not be the person a
+  // dozen friends message about a mistyped time.
+  var CONTACT = (cfg.CONTACT || cfg.APPROVER || 'the coordinator');
 
   var CATS = [
     {key:'rides',   label:'Rides',    color:'var(--sage)'},
@@ -550,137 +563,197 @@
           '<p>So the calendar invitation can reach you. That way the time and '
         + 'place land on your own calendar, and if anything changes your '
         + 'calendar updates on its own \u2014 nobody has to text you.</p>'
-        + '<p>Only ' + esc(APPROVER) + ' and the coordinators see your email and '
+        + '<p>Only ' + esc(CONTACT) + ' and Tracey see your email and '
         + 'phone number. Other friends just see your name next to whatever you '
         + 'have signed up for.</p>')
 
       + q('What happens after I tap \u201cI can help\u201d?',
-          '<p>The need shows as covered straight away, so nobody else takes it. '
-        + 'Shortly afterwards you get a calendar invitation by email. Open it '
+          '<p>It shows as covered straight away, so nobody else takes it. '
+        + 'Shortly afterwards a calendar invitation arrives by email. Open it '
         + 'and it goes on your calendar.</p>'
-        + '<p>If the invitation does not arrive within a few minutes, check your '
-        + 'junk folder \u2014 and let ' + esc(APPROVER) + ' know, because it may '
-        + 'mean the email address was mistyped.</p>')
+        + '<p>If it has not arrived within a few minutes, check your junk '
+        + 'folder \u2014 and tell ' + esc(CONTACT) + ', because it may mean the '
+        + 'address was mistyped.</p>')
 
       + q('Something came up and I cannot make it',
           '<p>Open the page, find what you signed up for, and tap '
-        + '\u201cFree up this slot\u201d. It goes straight back on the list for '
-        + 'someone else, and the coordinators are told.</p>'
-        + '<p>Please do it there rather than by text \u2014 that is the whole '
-        + 'point of the page, and it means nothing quietly falls through.</p>')
+        + '<strong>Free up this slot</strong>. It goes straight back on the '
+        + 'list for someone else, and the coordinators are told.</p>'
+        + '<p>Please do it there rather than by text. Declining the calendar '
+        + 'invitation does <strong>not</strong> free it up \u2014 the page will '
+        + 'still show you as covering it, and nobody will know to find '
+        + 'somebody else.</p>'
+        + '<p><strong>If it is close to the time</strong>, freeing it up may '
+        + 'not be enough on its own \u2014 nobody may look at the page before '
+        + 'it comes round. Please ask another friend if they can step in for '
+        + 'you.</p>'
+        + '<p>If you cannot find anyone, reach out to Tracey or ' + esc(CONTACT)
+        + ' so they can make a quick adjustment. This is the one time it is '
+        + 'worth interrupting them.</p>')
 
       + q('The time changed. Do I need to do anything?',
-          '<p>No. You are a real attendee on the calendar event, so any change '
-        + 'reaches you the same way any meeting change would. Your calendar '
-        + 'updates itself.</p>')
+          '<p>You will get an email saying it has changed, with a fresh '
+        + 'invitation, and your calendar updates itself.</p>'
+        + '<p>The one thing worth doing: if the new time does not work for you, '
+        + 'free up the slot on the page so someone else can take it.</p>')
 
-      + q('What are the buttons across the top?',
-          '<p>They filter the list \u2014 Rides, Izzy, Walks, Errands, Other. '
-        + '\u201cAll\u201d shows everything. They only change what you are '
-        + 'looking at; nothing is hidden.</p>')
+      + q('What are the rounded buttons above the list?',
+          '<p>They are the kinds of help being asked for \u2014 Rides, Izzy, '
+        + 'Walks, Other \u2014 and tapping one narrows the list to just that '
+        + 'kind.</p>'
+        + '<p>The number on each is how many are still open in that group. One '
+        + 'greyed out with no number has nothing open just now.</p>'
+        + '<p><strong>All</strong> shows everything, and is where you start. '
+        + 'They only change what you are looking at; nothing is hidden.</p>')
+
+      + q('What does the orange NEW mean?',
+          '<p>Something added since you last signed up for anything. It stays '
+        + 'there across visits until you take something on, so you will not '
+        + 'miss it by glancing at the page and closing it again.</p>')
+
+      + q('Some say ANYTIME instead of a time',
+          '<p>Those are things with no appointment attached \u2014 shopping, an '
+        + 'errand, something dropped off. Fit them around whatever else you are '
+        + 'doing. If one says <em>by Thursday</em>, that is when it is needed '
+        + 'by, not a time to turn up.</p>'
+        + '<p>They come with no calendar invitation, because there is nothing '
+        + 'to put on a calendar.</p>')
+
+      + q('One says the ride home is covered but not the ride there',
+          '<p>Some appointments need a lift each way, and the two journeys are '
+        + 'listed separately so different people can take them.</p>'
+        + '<p>If you see one marked in orange, its other half is already '
+        + 'covered and somebody is relying on half a journey. Those are worth '
+        + 'taking first.</p>'
+        + '<p>Sign up for one and you will be asked whether you can do the '
+        + 'other too. Saying no is a perfectly good answer.</p>')
+
+      + q('Can I keep this on my home screen?',
+          '<p>Yes, and it is worth it \u2014 one tap rather than hunting for the '
+        + 'link. Tap the card at the top of the page and it will show you how, '
+        + 'or use <strong>Share</strong> then <strong>Add to Home Screen</strong> '
+        + 'in Safari.</p>')
 
       + q('What is \u201cTracey\u2019s journey\u201d?',
           '<p>Tracey writes about how her recovery is going. Reading it needs '
         + esc(APPROVER) + ' to approve you first \u2014 signing up to help does '
         + 'not automatically give you access.</p>'
-        + '<p>Tap the button and it will ask on your behalf.</p>')
+        + '<p>Tap the button and it will ask on your behalf. A number on it '
+        + 'means she has written something you have not read.</p>')
 
       + q('I am on a different phone or my browser forgot me',
           '<p>Enter the same email address again. Everything you signed up for '
         + 'comes straight back.</p>')
 
       + q('Something looks wrong',
-          '<p>Tell ' + esc(APPROVER) + '. If a need looks like it is at the wrong '
-        + 'time, or someone is shown who should not be, it is worth saying '
-        + 'rather than assuming.</p>');
+          '<p>There is a <strong>Something not working?</strong> line at the '
+        + 'very bottom of the page. Tap it and say what happened \u2014 it goes '
+        + 'straight to ' + esc(CONTACT) + ', and however small it seems he '
+        + 'would rather know.</p>'
+        + '<p>Worth doing for anything that did not behave as you expected: a '
+        + 'need at the wrong time, someone shown who should not be, a button '
+        + 'that did nothing.</p>'
+        + '<p>Not Tracey \u2014 she has asked to be left out of the day-to-day '
+        + 'while she is healing, and messages cost her energy she does not have '
+        + 'to spare.</p>');
 
     var coord = !coord_mode() ? '' : ''
       + '<h3>For coordinators</h3>'
+
       + q('Creating a need',
           '<p>Make the event on the Tracey Recovery calendar in Outlook and add '
         + 'the signup address as an attendee. It appears here within seconds.</p>'
-        + '<p>Put a tag in the title if you want to be sure where it files: '
-        + '<code>#rides</code> <code>#izzy</code> <code>#walks</code> '
-        + '<code>#other</code>. The tag is removed before '
-        + 'friends see it.</p>')
+        + '<p>Tag the title if the words alone would not say what kind of help '
+        + 'it is: <code>#rides</code> <code>#izzy</code> <code>#walks</code> '
+        + '<code>#other</code>. The tag is removed before friends see it.</p>'
+        + '<p>Repeating events work: one invitation becomes one entry per '
+        + 'occurrence, each claimable on its own, up to thirty at a time.</p>')
+
+      + q('An appointment needing a lift each way',
+          '<p>Tag it <code>#roundtrip</code> and one event becomes two: a ride '
+        + 'there at the start time, a ride home at the end. Either can be '
+        + 'claimed on its own, and whoever takes one is asked about the '
+        + 'other.</p>'
+        + '<p>Whichever is left shows in orange and sorts to the top, because a '
+        + 'covered outbound and an empty return is how somebody ends up '
+        + 'stranded.</p>'
+        + '<p><code>#bothways</code> and <code>#ride2</code> do the same thing.</p>')
 
       + q('Changing or cancelling',
-          '<p>Edit the event in Outlook and <strong>Send Update</strong> \u2014 not '
-        + 'just Save. Save emails nobody, so nothing reaches this page.</p>'
-        + '<p>Whoever claimed it keeps it, and gets the change directly from '
-        + 'Outlook.</p>')
-
-      + q('Someone phoned instead of using the page',
-          '<p>Use <strong>Sign someone up</strong>. They get the same calendar '
-        + 'invitation and appear in the roster.</p>')
-
-      + q('Swapping one person for another',
-          '<p>Free the slot in <strong>Covered</strong>, then sign the new person '
-        + 'up. If the Outlook invitation had already gone out, remove the first '
-        + 'person from the event in Outlook first \u2014 that is what actually '
-        + 'tells them.</p>')
-
-      + q('Approving someone for the journal',
-          '<p><strong>Waiting to read her updates</strong> lists anyone who has '
-        + 'asked. Approve or decline there. You can also change anyone\u2019s '
-        + 'level later under Registered friends.</p>'
-        + '<p>Nobody is told which level they are on, and nobody sees any sign '
-        + 'that posts exist which they cannot read.</p>')
-
-      + q('A need will not go away',
-          '<p>Tap <strong>Remove</strong> on it. That deletes it from the page.</p>'
-        + '<p>This happens when the event was cancelled in Outlook but the signup '
-        + 'address was never a real attendee on it \u2014 usually because the '
-        + 'invitation was forwarded rather than the address being added to the '
-        + 'event itself. Outlook sends the cancellation to its own attendees, so '
-        + 'nothing reaches this page.</p>'
-        + '<p>To avoid it: add the signup address to the event in Outlook rather '
-        + 'than forwarding the invitation on. Then cancellations and changes '
-        + 'arrive on their own.</p>'
-        + '<p>If someone had signed up, they are emailed automatically to say it '
-        + 'is cancelled. If they were also on the Outlook invite, cancel that '
-        + 'event in Outlook too so it leaves their calendar.</p>')
+          '<p>Edit the event in Outlook and <strong>Send Update</strong> \u2014 '
+        + 'not just Save. Save emails nobody, so nothing reaches this page.</p>'
+        + '<p>Whoever claimed it is sent the updated invitation automatically '
+        + 'and asked to free up the slot if the new time does not suit. '
+        + 'Cancelling tells them it is off. Nothing for you to do either '
+        + 'way.</p>')
 
       + q('Something that is not an appointment',
           '<p>A pint of milk does not belong on a calendar. Use '
         + '<strong>Ask for something</strong> at the top: a description, '
         + 'anything worth knowing, and a by-when if it matters. Leave the date '
         + 'blank and it stays up until somebody does it.</p>'
-        + '<p>Tracey can post these herself from her own page, so she does not '
-        + 'have to ask anyone to add a loaf of bread to a list.</p>'
-        + '<p>A day and a loose window both work: pick a date, and say when '
-        + 'would suit in your own words \u2014 <em>afternoon</em>, '
-        + '<em>before three</em>, <em>after she is back from rehab</em>. '
-        + 'Friends see exactly that, rather than a time nobody promised.</p>'
-        + '<p>Either of you can also email it to the signup address with '
-        + '<code>#ask</code> in the subject \u2014 the subject becomes the '
-        + 'request and the body becomes the notes. Add '
-        + '<code>by 2026-09-18 afternoon</code> for a day and a window.</p>'
-        + '<p>Friends see these marked <strong>Anytime</strong> rather than with '
-        + 'a time, sorted to the top, and no calendar invitation is sent because '
-        + 'there is nothing to put on a calendar.</p>')
+        + '<p>Tracey can post these herself from her own page.</p>'
+        + '<p>Either of you can also email the signup address with '
+        + '<code>#ask</code> in the subject. Write the deadline in plain words '
+        + '\u2014 <em>by Thursday</em>, <em>by tomorrow afternoon</em> \u2014 and '
+        + 'it will be read out of the subject.</p>')
+
+      + q('Someone phoned instead of using the page',
+          '<p>Use <strong>Sign someone up</strong>. They get the same calendar '
+        + 'invitation and appear in the roster.</p>')
+
+      + q('Swapping one person for another',
+          '<p>Free the slot in <strong>Covered</strong>, then sign the new '
+        + 'person up. The first person is not told automatically, so say '
+        + 'something to them yourself.</p>')
+
+      + q('A need will not go away',
+          '<p>Tap <strong>Remove</strong> on it. Anyone who had signed up is '
+        + 'emailed to say it is cancelled.</p>'
+        + '<p>This happens when an event was cancelled in Outlook but the '
+        + 'signup address was never an attendee \u2014 usually because the '
+        + 'invitation was forwarded rather than the address being added to the '
+        + 'event itself. Outlook sends its cancellation to its own attendees, '
+        + 'so nothing reaches this page.</p>'
+        + '<p>To avoid it: add the signup address to the event rather than '
+        + 'forwarding the invitation on.</p>')
+
+      + q('The Outlook invite list',
+          '<p>Optional. Changes and cancellations reach friends on their own '
+        + 'now. Adding them to the Outlook event as a real attendee only buys '
+        + 'you one extra thing: you see their RSVP.</p>'
+        + '<p>The daily check will mention anything sitting there more than a '
+        + 'week, and otherwise leaves you alone.</p>')
 
       + q('Asking everyone to take a look',
           '<p><strong>Ask everyone</strong> at the top emails every registered '
-        + 'friend a list of what is still open, with the link. Each one goes '
+        + 'friend a list of what is still open, with the link. Each goes '
         + 'separately, so nobody sees anyone else\u2019s address.</p>'
         + '<p>The bar says when you last did it, because the quickest way to '
         + 'make people stop reading these is to send two in a morning. Once a '
-        + 'week, or when something genuinely needs covering, is about right.</p>'
-        + '<p>It only appears when something is actually open.</p>')
+        + 'week, or when something genuinely needs covering, is about right.</p>')
+
+      + q('Approving someone for the journal',
+          '<p><strong>Waiting to read her updates</strong> lists anyone who has '
+        + 'asked. Approving emails them to say so, with the link.</p>'
+        + '<p><strong>Email link</strong> next to anyone already reading sends '
+        + 'that again \u2014 useful for people approved before those emails '
+        + 'existed.</p>'
+        + '<p>Nobody is told which level they are on, and nobody sees any sign '
+        + 'that posts exist which they cannot read.</p>')
+
+      + q('Tracey wants to correct a post',
+          '<p>She reposts the corrected version by email, and you hide the old '
+        + 'one. Hiding keeps it in case she changes her mind; deleting is '
+        + 'permanent.</p>')
 
       + q('Finding something that already happened',
           '<p>The panel shows what is still ahead, so it stays usable. Tap '
         + '<strong>Show past</strong> at the top to include everything that has '
         + 'already happened \u2014 useful for looking someone up, or for tidying '
         + 'away things that should not have been there.</p>'
-        + '<p>Nothing is ever deleted by hiding it. Friends only ever see what is '
-        + 'ahead of them.</p>')
-
-      + q('Tracey wants to correct a post',
-          '<p>She reposts the corrected version by email, and you hide the old '
-        + 'one. Hiding keeps it in case she changes her mind; deleting is '
-        + 'permanent.</p>')
+        + '<p>Nothing is ever deleted by hiding it. Friends only ever see what '
+        + 'is ahead of them.</p>')
 
       + q('Checking the system is working',
           '<p>Open <code>/api/health</code> on this site. '
@@ -1311,7 +1384,11 @@
           : '<div class="empty">Everything\u2019s covered right now. Check back soon, or see what\u2019s already handled below.</div>')
       + moreLine
       + '<div class="section-title">Already covered</div>'
-      + (cov.length ? cov.map(row).join('') : '<div class="empty">Nothing covered yet.</div>');
+      + (cov.length ? cov.map(row).join('') : '<div class="empty">Nothing covered yet.</div>')
+      // Quiet, at the bottom, competing with nothing. Someone who needs
+      // it will be looking for it.
+      + '<div class="footline"><button data-action="problem">'
+      +   'Something not working?</button></div>';
   }
 
   // Added to a home screen, iOS keeps the page frozen in memory rather
@@ -1624,6 +1701,11 @@
       return;
     }
 
+    if (a === 'problem') {
+      await reportProblem();
+      return;
+    }
+
     if (a === 'showall') {
       showAll = !showAll;
       render();
@@ -1910,6 +1992,97 @@
       if (myTag === null) { myTag = tag; return; }
       if (tag !== myTag) needsReload = true;
     } catch (e) { /* offline: try again later */ }
+  }
+
+  // Reporting that something is not working.
+  //
+  // The point is permission rather than access: a friend can already
+  // text about a problem, and mostly will not — it feels too small to
+  // bother someone whose wife is recovering. A button that invites it
+  // lowers that bar. So the wording asks what went wrong, not for
+  // feedback, which would invite opinions nobody has time to answer.
+  function reportProblem() {
+    return new Promise(function (resolve) {
+      var bg = document.createElement('div');
+      bg.className = 'ask-bg';
+      bg.innerHTML = '<div class="ask">'
+        + '<h3>What went wrong?</h3>'
+        + '<p>However small. If something did not do what you expected, '
+        + esc(CONTACT) + ' would rather know.</p>'
+        + '<textarea id="pr-text" placeholder="I tapped I can help on '
+        +   'Thursday\u2019s walk and nothing happened."></textarea>'
+        + '<div class="field-err" id="pr-err"></div>'
+        + '<div class="acts">'
+        +   '<button class="yes" data-send="1">Send it</button>'
+        +   '<button data-send="0">Cancel</button>'
+        + '</div></div>';
+
+      function done() {
+        if (bg.parentNode) bg.parentNode.removeChild(bg);
+        document.removeEventListener('keydown', onKey);
+        resolve();
+      }
+      function onKey(e) { if (e.key === 'Escape') done(); }
+
+      bg.addEventListener('click', async function (e) {
+        var b = e.target.closest('[data-send]');
+        if (!b && e.target !== bg) return;
+        if (!b || b.getAttribute('data-send') === '0') { done(); return; }
+
+        var box = document.getElementById('pr-text');
+        var said = (box.value || '').trim();
+        var slot = document.getElementById('pr-err');
+        if (said.length < 5) {
+          slot.textContent = 'A sentence about what happened is plenty.';
+          return;
+        }
+
+        b.disabled = true;
+        b.textContent = 'Sending\u2026';
+
+        // Enough about where they were that nobody has to ask which
+        // thing they meant.
+        var context = [
+          coord ? 'coordinator view' : 'friend view',
+          (needs || []).length + ' needs loaded',
+          cat === 'all' ? 'no filter' : 'filtered to ' + cat,
+          showAll ? 'showing everything' : 'two-week view'
+        ].join(' \u00b7 ');
+
+        var ok = false;
+        try {
+          var res = await fetch('/api/notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'problem',
+              name: me ? me.name : '',
+              email: me ? me.email : '',
+              said: said,
+              context: context
+            })
+          });
+          ok = res.ok;
+        } catch (err) { ok = false; }
+
+        b.disabled = false;
+        b.textContent = 'Send it';
+
+        if (!ok) {
+          slot.textContent = 'Could not send that just now. Please try again.';
+          return;
+        }
+        done();
+        window.alert('Thanks \u2014 ' + CONTACT + ' will take a look.');
+      });
+
+      document.addEventListener('keydown', onKey);
+      document.body.appendChild(bg);
+      setTimeout(function(){
+        var t = document.getElementById('pr-text');
+        if (t) t.focus();
+      }, 60);
+    });
   }
 
   function reloadIfDue() {
