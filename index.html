@@ -73,6 +73,13 @@
     font-family:inherit;font-size:.81rem;font-weight:500;padding:7px 13px;border-radius:100px;
     cursor:pointer;white-space:nowrap}
   .chip.active{background:var(--text);border-color:var(--text);color:#fff}
+  .chip .n{display:inline-block;margin-left:5px;font-size:.72rem;font-weight:700;
+    color:var(--text-muted);background:#EFEDE6;border-radius:100px;
+    padding:1px 6px;vertical-align:1px}
+  .chip.active .n{background:rgba(255,255,255,.22);color:#fff}
+  /* Nothing open in that category: still shown, so a friend can see it
+     exists, but visibly not worth a tap. */
+  .chip.bare{opacity:.45}
   .section-title{font-family:'Fraunces',serif;font-size:1.12rem;font-weight:500;margin:28px 0 4px}
   .section-sub{color:var(--text-muted);font-size:.84rem;margin:0 0 12px;line-height:1.45}
   .empty{color:var(--text-muted);font-size:.89rem;padding:14px 0;border-top:1px solid var(--border)}
@@ -1203,8 +1210,28 @@
     var list = cat === 'all' ? needs : needs.filter(function(n){ return n.category === cat; });
     var open = list.filter(function(n){ return n.status === 'OPEN'; });
     var cov  = list.filter(function(n){ return n.status === 'FILLED'; });
+    // How many are actually open in each category. Counting everything
+    // would include things already covered, which is not a number a
+    // friend can do anything with.
+    var openAll = needs.filter(function(n){ return n.status === 'OPEN'; });
+    var counts = { all: openAll.length };
+    CATS.forEach(function(c){ counts[c.key] = 0; });
+    openAll.forEach(function(n){
+      var k = catBy[n.category] ? catBy[n.category].key : 'other';
+      counts[k] = (counts[k] || 0) + 1;
+    });
+
     var chips = [{key:'all',label:'All'}].concat(CATS).map(function(c){
-      return '<button class="chip '+(cat===c.key?'active':'')+'" data-action="filter" data-cat="'+c.key+'">'+c.label+'</button>';
+      var n = counts[c.key] || 0;
+      // No number on All. It is the default view, so the count describes
+      // the list already on screen. The category numbers earn their
+      // place because they say what is behind a tap nobody has made.
+      var showN = c.key !== 'all' && n > 0;
+      return '<button class="chip ' + (cat === c.key ? 'active' : '')
+        + (c.key !== 'all' && n === 0 ? ' bare' : '')
+        + '" data-action="filter" data-cat="' + c.key + '">' + c.label
+        + (showN ? '<span class="n">' + n + '</span>' : '')
+        + '</button>';
     }).join('');
 
     // The welcome note earns its place once, on the registration screen.
