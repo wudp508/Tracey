@@ -393,7 +393,8 @@
         + 'When Tracey writes something, it will appear on this page.</div>';
       return;
     }
-    sub.textContent = 'Her own words, newest first.';
+    sub.textContent = 'Her own words, newest first. '
+      + 'Please keep what she writes here between you and her.';
     content.innerHTML = posts.map(function (p) {
       return '<div class="post">'
         + '<h2>' + esc(p.title) + '</h2>'
