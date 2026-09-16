@@ -336,8 +336,10 @@ export default async (request) => {
         <p style="margin:0 0 18px">
           <a href="${link}" style="color:#3D5A5B;font-weight:600">${esc(link)}</a></p>
         <p style="margin:0;color:#6E6558;font-size:13.5px">
-          It is her own writing, shared with the people she has chosen. Please
-          keep the link to yourself.</p>
+          This is Tracey&rsquo;s own writing, shared with people she has chosen.
+          <strong>Please don&rsquo;t forward it, or pass on what she has
+          written.</strong> The link itself will not open for anyone else, but
+          her words travel easily once they leave here.</p>
       </div>`;
 
     try {
@@ -360,8 +362,10 @@ export default async (request) => {
             + (again ? 'Here is the link again.\n\n'
                      : 'She has been writing about how her recovery is going.\n\n')
             + `${link}\n\n`
-            + `It is her own writing, shared with the people she has chosen. `
-            + `Please keep the link to yourself.`
+            + `This is Tracey's own writing, shared with people she has chosen. `
+            + `Please don't forward it, or pass on what she has written. The `
+            + `link itself will not open for anyone else, but her words travel `
+            + `easily once they leave here.`
         })
       });
       if (!res.ok) {
