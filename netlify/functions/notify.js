@@ -320,7 +320,10 @@ export default async (request) => {
     if (!addr) return new Response('Bad request', { status: 400 });
 
     const first = who.split(/\s+/)[0] || 'there';
-    const link = (SITE_URL || '').replace(/\/+$/, '') + '/journal';
+    // The signup page, not the journal. One address for everybody:
+    // a friend who saved the journal link to their home screen would get
+    // an icon that opens her writing rather than the list of needs.
+    const site = (SITE_URL || '').replace(/\/+$/, '');
 
     const html = `
       <div style="font-family:-apple-system,Segoe UI,sans-serif;font-size:15px;
@@ -331,10 +334,10 @@ export default async (request) => {
           ? 'Here is the link again, in case it went astray.'
           : 'She has been writing about how her recovery is going, and you are '
             + 'welcome to read it.'}</p>
-        <p style="margin:0 0 16px">Open the signup page and tap
-          <strong>Tracey&rsquo;s journey</strong>, or go straight there:</p>
+        <p style="margin:0 0 18px">Open the signup page and tap
+          <strong>Tracey&rsquo;s journey</strong>.</p>
         <p style="margin:0 0 18px">
-          <a href="${link}" style="color:#3D5A5B;font-weight:600">${esc(link)}</a></p>
+          <a href="${site}" style="color:#3D5A5B;font-weight:600">${esc(site)}</a></p>
         <p style="margin:0;color:#6E6558;font-size:13.5px">
           This is Tracey&rsquo;s own writing, shared with people she has chosen.
           <strong>Please don&rsquo;t forward it, or pass on what she has
@@ -361,7 +364,8 @@ export default async (request) => {
           textContent: `${first}, you can read Tracey's updates.\n\n`
             + (again ? 'Here is the link again.\n\n'
                      : 'She has been writing about how her recovery is going.\n\n')
-            + `${link}\n\n`
+            + `Open the signup page and tap "Tracey's journey".\n\n`
+            + `${site}\n\n`
             + `This is Tracey's own writing, shared with people she has chosen. `
             + `Please don't forward it, or pass on what she has written. The `
             + `link itself will not open for anyone else, but her words travel `
