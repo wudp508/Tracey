@@ -11,7 +11,9 @@
 //   INGEST_TOKEN        must match settings.ingest_token in Supabase
 //   TIMEZONE            optional IANA zone, e.g. America/New_York
 
-const CATEGORIES = ['rides','walks','izzy','errands','other'];
+// Errands folded into Other: four chips fit one row on a phone, and
+// the distinction was not earning its place.
+const CATEGORIES = ['rides','walks','izzy','other'];
 
 // An appointment that needs a lift each way. Tagged once, it becomes two
 // needs: a ride there at the start time, a ride home at the end.
@@ -119,7 +121,7 @@ function extractCategory(title, description) {
   if (/\b(izzy|dog|puppy|leash|kennel|vet)\b/.test(t)) return 'izzy';
 
   if (/\bgrocer|\berrand|\bpharmac|\bprescription\b|\bshop|\bstore\b|\bcostco\b|\btarget\b|\bbank\b|\bpost office\b|\blaundry\b|\bdishes\b|\bclean\b|\btidy\b|\byard\b|\blawn\b|\bchores?\b/.test(t))
-    return 'errands';
+    return 'other';
 
   if (/\bwalk\b|\bstroll\b|\bexercise\b|\bstretch\b/.test(t)) return 'walks';
 
@@ -316,6 +318,94 @@ async function tellVolunteers(ids, action) {
   return told;
 }
 
+
+// Reads a deadline out of ordinary words, because "by Thursday" is what
+// somebody actually types. A weekday means the next one coming up; today
+// counts as today, not a week away.
+//
+// Anything it cannot read is left alone rather than guessed at, and
+// whatever it does read is removed from the title so the request does
+// not repeat itself.
+const WEEKDAYS = {
+  sun: 0, sunday: 0, mon: 1, monday: 1, tue: 2, tues: 2, tuesday: 2,
+  wed: 3, weds: 3, wednesday: 3, thu: 4, thur: 4, thurs: 4, thursday: 4,
+  fri: 5, friday: 5, sat: 6, saturday: 6
+};
+
+function localToday(tz) {
+  // The day it is where Tracey is, not where the server is.
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz || 'America/Los_Angeles',
+    year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(new Date());
+  const get = t => parts.find(p => p.type === t).value;
+  return new Date(Date.UTC(+get('year'), +get('month') - 1, +get('day')));
+}
+
+function ymdOf(d) {
+  return d.getUTCFullYear() + '-'
+    + String(d.getUTCMonth() + 1).padStart(2, '0') + '-'
+    + String(d.getUTCDate()).padStart(2, '0');
+}
+
+// Returns { date, matched } or null. `matched` is the text to strip.
+//
+// `loose` allows weekday names and words like tomorrow. That is only
+// safe after the word "by" — otherwise "Sunday roast ingredients" would
+// become a request for "roast ingredients" due Sunday. Without a "by",
+// only an unambiguous numeric date is read.
+function readDeadline(text, tz, loose) {
+  const today = localToday(tz);
+  const src = String(text || '');
+
+  // An explicit date wins: 2026-09-18, 9/18, 18 Sept.
+  let m = src.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+  if (m) return { date: `${m[1]}-${m[2]}-${m[3]}`, matched: m[0] };
+
+  m = src.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
+  if (m) {
+    let year = m[3] ? (m[3].length === 2 ? 2000 + (+m[3]) : +m[3])
+                    : today.getUTCFullYear();
+    const guess = new Date(Date.UTC(year, +m[1] - 1, +m[2]));
+    // A bare day/month already gone this year means next year.
+    if (!m[3] && guess < today) guess.setUTCFullYear(year + 1);
+    return { date: ymdOf(guess), matched: m[0] };
+  }
+
+  if (!loose) return null;
+
+  if (/\btoday\b/i.test(src)) {
+    return { date: ymdOf(today), matched: src.match(/\btoday\b/i)[0] };
+  }
+  if (/\btomorrow\b/i.test(src)) {
+    const d = new Date(today); d.setUTCDate(d.getUTCDate() + 1);
+    return { date: ymdOf(d), matched: src.match(/\btomorrow\b/i)[0] };
+  }
+  if (/\bthis weekend\b/i.test(src)) {
+    const d = new Date(today);
+    while (d.getUTCDay() !== 6) d.setUTCDate(d.getUTCDate() + 1);
+    return { date: ymdOf(d), matched: src.match(/\bthis weekend\b/i)[0] };
+  }
+  if (/\bnext week\b/i.test(src)) {
+    const d = new Date(today); d.setUTCDate(d.getUTCDate() + 7);
+    return { date: ymdOf(d), matched: src.match(/\bnext week\b/i)[0] };
+  }
+
+  // A weekday name. "next Thursday" skips the one this week.
+  const wd = src.match(/\b(next\s+)?(sun|sunday|mon|monday|tue|tues|tuesday|wed|weds|wednesday|thu|thur|thurs|thursday|fri|friday|sat|saturday)\b/i);
+  if (wd) {
+    const want = WEEKDAYS[wd[2].toLowerCase()];
+    const d = new Date(today);
+    let step = (want - d.getUTCDay() + 7) % 7;
+    if (step === 0 && wd[1]) step = 7;       // "next Thursday" on a Thursday
+    if (wd[1] && step < 7) step += 7;
+    d.setUTCDate(d.getUTCDate() + step);
+    return { date: ymdOf(d), matched: wd[0] };
+  }
+
+  return null;
+}
+
 // ---------- a request that is not an appointment ----------
 
 // Only these people can post one by email. A From header can be forged,
@@ -346,21 +436,35 @@ async function maybeRequest(payload) {
     return new Response('Not allowed', { status: 200 });
   }
 
-  const title = subject.replace(/#ask\b/ig, '').replace(/\s{2,}/g, ' ').trim();
+  let title = subject.replace(/#ask\b/ig, '').replace(/\s{2,}/g, ' ').trim();
   if (!title) return new Response('No description', { status: 200 });
 
-  // A date anywhere in the subject becomes the by-when. Without one the
-  // request simply stays up until somebody does it.
+  // "Milk and bread by Thursday afternoon" — the deadline and the window
+  // both come out of ordinary words, and what is left is the request.
   let byWhen = null;
-  const d = title.match(/\bby\s+(\d{4})-(\d{2})-(\d{2})\b/i);
-  if (d) byWhen = `${d[1]}-${d[2]}-${d[3]}`;
-
-  // "#ask Milk by 2026-09-18 afternoon" — anything after the date is the
-  // window, in her own words.
   let window_ = '';
-  if (d) {
-    const after = title.slice(title.indexOf(d[0]) + d[0].length).trim();
-    if (after) window_ = after.slice(0, 60);
+
+  const byPart = title.match(/\bby\s+(.+)$/i);
+  const hunt = byPart ? byPart[1] : title;
+  const found = readDeadline(hunt, process.env.TIMEZONE, !!byPart);
+
+  if (found) {
+    byWhen = found.date;
+
+    // Whatever she wrote after the date is the window: "afternoon",
+    // "after rehab". Kept in her words rather than turned into a time.
+    const at = hunt.indexOf(found.matched);
+    const after = hunt.slice(at + found.matched.length).trim();
+    if (after) window_ = after.replace(/^[,\s]+/, '').slice(0, 60);
+
+    // Remove the whole "by ..." clause from the title, or just the date
+    // if she did not write "by".
+    title = byPart
+      ? title.slice(0, title.toLowerCase().lastIndexOf(byPart[0].toLowerCase())).trim()
+      : title.replace(found.matched, '').replace(/\s{2,}/g, ' ').trim();
+
+    title = title.replace(/[,\s]+$/, '');
+    if (!title) title = 'Something needed';
   }
 
   const body = String(payload.plain || payload.text || payload.body || '')
@@ -379,10 +483,8 @@ async function maybeRequest(payload) {
       },
       body: JSON.stringify({
         p_token: INGEST_TOKEN,
-        p_title: d
-          ? title.slice(0, title.indexOf(d[0])).trim() || title.replace(d[0], '').trim()
-          : title,
-        p_category: 'errands',
+        p_title: title,
+        p_category: 'other',
         p_by_when: byWhen,
         p_instructions: body,
         p_window: window_
