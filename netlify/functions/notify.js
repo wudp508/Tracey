@@ -310,6 +310,66 @@ export default async (request) => {
     }
   }
 
+  // A friend reporting that something is not working. The value here is
+  // not the report itself so much as the permission: someone who would
+  // never text about a small thing will tap a button that invites it.
+  if (action === 'problem') {
+    const who = (body.name || '').trim();
+    const addr = (body.email || '').trim();
+    const said = String(body.said || '').trim().slice(0, 2000);
+    const context = String(body.context || '').trim().slice(0, 300);
+    if (!said) return new Response('Nothing to send', { status: 400 });
+
+    const to = (process.env.ALERT_TO || '').trim()
+      || (NOTIFY_TO || '').split(',')[0].trim();
+    if (!to) return new Response('Nowhere to send it', { status: 500 });
+
+    const html = `
+      <div style="font-family:-apple-system,Segoe UI,sans-serif;font-size:15px;
+                  line-height:1.55;color:#2B2321;max-width:520px">
+        <p style="font-size:17px;font-weight:600;margin:0 0 14px">
+          ${esc(who || addr || 'Someone')} reported a problem</p>
+        <div style="background:#FBF9F4;border-left:3px solid #A85C32;
+                    padding:12px 14px;margin:0 0 16px;white-space:pre-wrap">${esc(said)}</div>
+        <p style="margin:0 0 6px;color:#6E6558;font-size:13px">
+          ${esc(who)}${addr ? ' &middot; ' + esc(addr) : ''}</p>
+        ${context ? `<p style="margin:0;color:#6E6558;font-size:12.5px">${esc(context)}</p>` : ''}
+      </div>`;
+
+    try {
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'accept': 'application/json',
+          'api-key': BREVO_API_KEY
+        },
+        body: JSON.stringify({
+          sender: { email: NOTIFY_FROM, name: 'For Tracey' },
+          to: to.split(',').map(e => e.trim()).filter(Boolean).map(e => ({ email: e })),
+          // Replying goes to the friend, not to the system, so a quick
+          // answer needs no address hunting.
+          replyTo: addr ? { email: addr, name: who || undefined }
+                        : { email: NOTIFY_FROM },
+          subject: `Problem reported by ${who || addr || 'a friend'}`,
+          htmlContent: html,
+          textContent: `${who || addr || 'Someone'} reported a problem:\n\n`
+            + said + `\n\n${who}${addr ? ' · ' + addr : ''}\n${context}`
+        })
+      });
+      if (!res.ok) {
+        console.error('Problem report failed:', res.status, await res.text());
+        return new Response('Send failed', { status: 502 });
+      }
+      return new Response(JSON.stringify({ sent: true }), {
+        status: 200, headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (e) {
+      console.error('Brevo unreachable', e);
+      return new Response('Send failed', { status: 502 });
+    }
+  }
+
   // Someone has been let in to read Tracey's journal — or is being sent
   // the link again. Without this they would only find out by happening
   // to open the page and noticing the button had changed.
