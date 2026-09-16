@@ -128,6 +128,7 @@
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 
   function fmtDay(iso){
+    if (!iso) return 'Anytime';
     try {
       var d = new Date(iso + 'T12:00:00Z');
       var today = new Date(); today.setHours(12,0,0,0);
@@ -181,15 +182,23 @@
     }
 
     // Grouped by day, so it reads like a week rather than a list.
+    // Undated requests have no day to sit under, so they get their own
+    // group at the top rather than falling into a bucket called "null".
     var byDay = {};
     needs.forEach(function(n){
-      (byDay[n.date] = byDay[n.date] || []).push(n);
+      var key = n.date || 'anytime';
+      (byDay[key] = byDay[key] || []).push(n);
     });
-    var days = Object.keys(byDay).sort();
+    var days = Object.keys(byDay).sort(function(a, b){
+      if (a === 'anytime') return -1;
+      if (b === 'anytime') return 1;
+      return a < b ? -1 : 1;
+    });
 
     var schedule = days.length
       ? days.map(function(d){
-          return '<div class="day">' + esc(fmtDay(d)) + '</div>'
+          return '<div class="day">'
+            + esc(d === 'anytime' ? 'Whenever suits' : fmtDay(d)) + '</div>'
             + byDay[d].map(function(n){
                 var mine = n.status === 'FILLED';
                 return '<div class="item' + (mine ? '' : ' open') + '">'
