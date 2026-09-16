@@ -16,7 +16,7 @@
      its own preview. -->
 <meta property="og:type" content="website" />
 <meta property="og:title" content="For Tracey" />
-<meta property="og:description" content="Rides, walks, Izzy, errands — take whatever fits your week. Everyone sees the same list, so nothing gets doubled up." />
+<meta property="og:description" content="Rides, walks, Izzy and whatever else — take what fits your week. Everyone sees the same list, so nothing gets doubled up." />
 <meta property="og:image" content="https://tracey-humphreys-help-her-recover.netlify.app/preview.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
@@ -24,7 +24,7 @@
 
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="For Tracey" />
-<meta name="twitter:description" content="Rides, walks, Izzy, errands — take whatever fits your week." />
+<meta name="twitter:description" content="Rides, walks, Izzy and whatever else — take what fits your week." />
 <meta name="twitter:image" content="https://tracey-humphreys-help-her-recover.netlify.app/preview.png" />
 
 <meta name="theme-color" content="#F7F5F0" />
@@ -231,10 +231,12 @@
   .yours-box .w{color:var(--text-muted)}
   .together{font-size:.85rem;color:var(--text-muted);line-height:1.5;
     margin:0 0 20px;padding:0 2px}
-  .moreline{text-align:center;padding:16px 0 4px}
-  .moreline button{font-family:inherit;font-size:.84rem;font-weight:600;
-    background:transparent;border:none;color:var(--text-muted);
-    text-decoration:underline;cursor:pointer;padding:6px}
+  .moreline{text-align:center;padding:18px 0 6px}
+  .moreline button{font-family:inherit;font-size:.86rem;font-weight:600;
+    background:var(--card-bg);border:1px solid var(--border);
+    color:var(--teal);border-radius:100px;cursor:pointer;
+    padding:11px 22px;-webkit-tap-highlight-color:transparent}
+  .moreline button:active{background:#EDF1F0}
   .help{background:var(--card-bg);border:1px solid var(--border);border-radius:12px;
     padding:6px 16px 10px;margin:0 0 22px}
   .help details{border-bottom:1px solid var(--border)}
@@ -302,10 +304,12 @@
     {key:'rides',   label:'Rides',    color:'var(--sage)'},
     {key:'izzy',    label:'Izzy',     color:'var(--clay)'},
     {key:'walks',   label:'Walks',    color:'var(--ochre)'},
-    {key:'errands', label:'Errands',  color:'var(--slate)'},
     {key:'other',   label:'Other',    color:'var(--grey)'}
   ];
   var catBy = {}; CATS.forEach(function(c){ catBy[c.key] = c; });
+  // Errands folded into Other. Anything still carrying the old key is
+  // shown as Other rather than rendering blank.
+  catBy['errands'] = catBy['other'];
 
   var needs = [], coordData = null, me = null, cat = 'all';
   var access = null;   // {access:'none'|'approved'|'close', requested:bool}
@@ -322,8 +326,16 @@
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
-  function fmtD(iso){ return new Date(iso+'T00:00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}); }
-  function fmtL(iso){ return new Date(iso+'T00:00:00').toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'}); }
+  // An untimed request has no date. Every caller used to assume one,
+  // and a missing date produced "Invalid Date" on the card.
+  function fmtD(iso){
+    if (!iso) return 'Anytime';
+    return new Date(iso+'T00:00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
+  }
+  function fmtL(iso){
+    if (!iso) return 'anytime';
+    return new Date(iso+'T00:00:00').toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});
+  }
   function first(n){ return String(n||'').split(' ')[0]; }
 
   function lsGet(k){ try { return JSON.parse(localStorage.getItem(k)); } catch(e){ return null; } }
@@ -582,7 +594,7 @@
         + 'the signup address as an attendee. It appears here within seconds.</p>'
         + '<p>Put a tag in the title if you want to be sure where it files: '
         + '<code>#rides</code> <code>#izzy</code> <code>#walks</code> '
-        + '<code>#errands</code> <code>#other</code>. The tag is removed before '
+        + '<code>#other</code>. The tag is removed before '
         + 'friends see it.</p>')
 
       + q('Changing or cancelling',
@@ -686,7 +698,12 @@
       + '<h3>You are covering</h3><ul>'
       + mine.map(function(n){
           return '<li><strong>' + esc(n.title) + '</strong>'
-            + '<span class="w"> \u00b7 ' + fmtD(n.date) + ', ' + esc(n.start_time) + '</span></li>';
+            + '<span class="w"> \u00b7 '
+            +   (n.anytime
+                  ? (n.date ? 'by ' + fmtD(n.date) : 'anytime')
+                    + (n.start_time ? ', ' + esc(n.start_time) : '')
+                  : fmtD(n.date) + ', ' + esc(n.start_time))
+            + '</span></li>';
         }).join('')
       + '</ul></div>';
   }
@@ -922,7 +939,12 @@
     var orphan = !filled && n.partner_id && n.partner_status === 'FILLED';
     return '<div class="row '+(filled?'filled':'')+' '+(mine?'mine':'')
       + (orphan ? ' orphan' : '')+'" style="--cat-color:'+c.color+'">'
-      + '<div class="when">'+fmtD(n.date)+'<span class="time">'+esc(n.start_time)+'–'+esc(n.end_time)+'</span></div>'
+      + '<div class="when">'
+      +   (n.anytime
+            ? (n.date ? 'by<br>' + fmtD(n.date) : 'Anytime')
+              + (n.start_time ? '<span class="time">'+esc(n.start_time)+'</span>' : '')
+            : fmtD(n.date)+'<span class="time">'+esc(n.start_time)+'–'+esc(n.end_time)+'</span>')
+      + '</div>'
       + '<div class="bd"><p class="ttl">'+esc(n.title)
       +   ((newIds && newIds[n.id] && n.status === 'OPEN')
             ? '<span class="newtag">New</span>' : '')+'</p>'
@@ -1168,7 +1190,7 @@
         + '<div class="welcome">'
         + '<p>Tracey is working her way back, and a lot of you have asked how you can help. '
         + 'This page is the answer.</p>'
-        + '<p>Everything she needs is listed here — rides to rehab, walks, company, errands, '
+        + '<p>Everything she needs is listed here — rides to rehab, walks, company, shopping, '
         + 'a hand with Izzy. Take whatever fits your week. You will see what is already covered, '
         + 'so nothing gets doubled up and nobody has to coordinate.</p>'
         + '<p>Thank you. It matters more than you know.</p></div>'
@@ -1196,15 +1218,32 @@
     cutoff.setDate(cutoff.getDate() + HORIZON_DAYS);
     var cutoffStr = cutoff.toISOString().slice(0, 10);
 
-    var openSoon = showAll ? open : open.filter(function(n){ return n.date <= cutoffStr; });
+    // An untimed request has no date, and comparing null against a date
+    // string is false — which quietly hid every one of them behind a
+    // horizon they were never subject to.
+    var openSoon = showAll ? open : open.filter(function(n){
+      if (n.anytime) return true;
+      return n.date && n.date <= cutoffStr;
+    });
 
     // A half-covered appointment is the most urgent thing on the page:
     // somebody is already relying on one leg. Those sort first, and the
     // card is marked.
     openSoon = openSoon.slice().sort(function(a, b){
+      // A half-covered trip first: somebody is already relying on it.
       var ao = (a.partner_id && a.partner_status === 'FILLED') ? 0 : 1;
       var bo = (b.partner_id && b.partner_status === 'FILLED') ? 0 : 1;
       if (ao !== bo) return ao - bo;
+
+      // Then anything without a fixed time, which a friend can fit
+      // around whatever else they are doing.
+      var aa = a.anytime ? 0 : 1, ba = b.anytime ? 0 : 1;
+      if (aa !== ba) return aa - ba;
+
+      // Undated requests sit above dated ones within that group.
+      if (!a.date && !b.date) return 0;
+      if (!a.date) return -1;
+      if (!b.date) return 1;
       if (a.date !== b.date) return a.date < b.date ? -1 : 1;
       return 0;
     });
@@ -1213,10 +1252,10 @@
     var moreLine = '';
     if (hiddenCount > 0 && !showAll) {
       moreLine = '<div class="moreline"><button data-action="showall">'
-        + 'Show ' + hiddenCount + ' more further ahead</button></div>';
+        + 'Show ' + hiddenCount + ' more, further ahead</button></div>';
     } else if (showAll && open.length > 0) {
       moreLine = '<div class="moreline"><button data-action="showall">'
-        + 'Just the next two weeks</button></div>';
+        + 'Show just the next two weeks</button></div>';
     }
 
     // How many of the things they can act on are new. Counting the whole
@@ -1585,7 +1624,7 @@
       el.disabled = true;
       el.textContent = 'Posting…';
       var qr = await db.rpc('add_request', {
-        p_title: t, p_pass: pass, p_category: 'errands',
+        p_title: t, p_pass: pass, p_category: 'other',
         p_by_when: by || null, p_instructions: note,
         p_window: (document.getElementById('rq-when').value || '').trim()
       });
