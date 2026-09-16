@@ -61,6 +61,33 @@
   .body code{background:var(--card-bg);border:1px solid var(--border);border-radius:4px;
     padding:1px 5px;font-size:.9em}
   .body a{color:var(--teal)}
+  /* A table on a phone is mostly a scrolling problem. This one scrolls
+     inside its own box rather than pushing the whole page sideways. */
+  .body .tablewrap{overflow-x:auto;margin:0 0 16px;-webkit-overflow-scrolling:touch}
+  .body table{border-collapse:collapse;font-size:.88rem;width:100%}
+  /* Cells wrap. An earlier version kept them on one line, which is fine
+     for a date and hopeless for a paragraph — one long cell made the
+     whole table scroll sideways for hundreds of words. */
+  .body th,.body td{border:1px solid var(--border);padding:8px 10px;
+    text-align:left;vertical-align:top;line-height:1.45;
+    min-width:4.5em;overflow-wrap:break-word}
+  /* A narrow screen cannot show four columns of prose. Below this the
+     table keeps its shape and scrolls, rather than crushing every
+     column into two words wide. */
+  @media (max-width: 560px) {
+    .body table{min-width:520px}
+  }
+  .body th{background:#F2EFE8;font-weight:600}
+  .body tbody tr:nth-child(even){background:#FBFAF7}
+  .body pre{background:#F2EFE8;border:1px solid var(--border);border-radius:8px;
+    padding:12px 14px;overflow-x:auto;margin:0 0 16px;font-size:.85rem;
+    line-height:1.5;-webkit-overflow-scrolling:touch}
+  .body pre code{background:none;border:none;padding:0;font-size:inherit}
+  .body del{color:var(--text-muted)}
+  .body ul ul,.body ol ol,.body ul ol,.body ol ul{margin:6px 0 0}
+  .body .task{list-style:none;margin-left:-20px}
+  .body .task .box{display:inline-block;width:1.05em;margin-right:.4em;
+    color:var(--sage);font-weight:700}
   .body strong{font-weight:600}
 </style>
 </head>
@@ -113,7 +140,16 @@
   // Everything is escaped before any markup is added, so nothing in the
   // text can inject HTML.
   function inline(t) {
-    return esc(t)
+    // A backslash before a marker means she wanted the character, not
+    // the formatting. Those are set aside first — stripping them at the
+    // end would be too late, the emphasis rules having already run.
+    var held = [];
+    var prepared = esc(t).replace(/\\([*_~`#\[\]\\])/g, function (_, ch) {
+      held.push(ch);
+      return '\u0000' + (held.length - 1) + '\u0000';
+    });
+
+    return prepared
       .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, '')          // images: drop
       .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function(_, label, href) {
         return /^https?:\/\//i.test(href)
@@ -121,9 +157,15 @@
           : label;
       })
       .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/~~([^~]+)~~/g, '<del>$1</del>')
+      // Three markers first, or the two-marker rule eats part of it.
+      .replace(/\*\*\*([^*]+)\*\*\*/g, '<strong><em>$1</em></strong>')
+      .replace(/___([^_]+)___/g, '<strong><em>$1</em></strong>')
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/__([^_]+)__/g, '<strong>$1</strong>')
       .replace(/(^|\W)_([^_]+)_(?=\W|$)/g, '$1<em>$2</em>')
-      .replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, '$1<em>$2</em>');
+      .replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, '$1<em>$2</em>')
+      .replace(/\u0000(\d+)\u0000/g, function (_, n) { return held[+n]; });
   }
 
   function markdown(src) {
@@ -131,10 +173,35 @@
     var out = [], para = [], list = null;
 
     function flushPara() {
-      if (para.length) { out.push('<p>' + inline(para.join(' ')) + '</p>'); para = []; }
+      if (para.length) {
+        // Two spaces at the end of a line, or a trailing backslash, mean
+        // she wanted the break kept.
+        out.push('<p>' + para.map(function(p, n){
+          return inline(p.text) + (p.brk && n < para.length - 1 ? '<br>' : '');
+        }).join(' ') + '</p>');
+        para = [];
+      }
     }
     function flushList() {
-      if (list) { out.push('<' + list.tag + '>' + list.items.join('') + '</' + list.tag + '>'); list = null; }
+      if (!list) return;
+      // Close from the deepest level outwards, folding each into the
+      // item above it.
+      while (list.levels.length > 1) {
+        var closed = list.levels.pop();
+        var parent = list.levels[list.levels.length - 1];
+        var nested = '<' + closed.tag + '>' + closed.items.join('')
+          + '</' + closed.tag + '>';
+        if (parent.items.length) {
+          parent.items[parent.items.length - 1] =
+            parent.items[parent.items.length - 1]
+              .replace(/<\/li>$/, nested + '</li>');
+        } else {
+          parent.items.push('<li>' + nested + '</li>');
+        }
+      }
+      var root = list.levels[0];
+      out.push('<' + root.tag + '>' + root.items.join('') + '</' + root.tag + '>');
+      list = null;
     }
     function flushAll() { flushPara(); flushList(); }
 
@@ -144,11 +211,39 @@
 
       if (!t) { flushAll(); continue; }
 
+      // A fenced code block. Everything inside is left exactly as
+      // written — no markdown, no smart anything.
+      var fence = t.match(/^(```|~~~)(.*)$/);
+      if (fence) {
+        flushAll();
+        var body = [];
+        var k = i + 1;
+        while (k < lines.length && lines[k].trim().indexOf(fence[1]) !== 0) {
+          body.push(lines[k]);
+          k++;
+        }
+        out.push('<pre><code>' + esc(body.join('\n')) + '</code></pre>');
+        i = k;
+        continue;
+      }
+
+      // Setext headings: a line underlined with === or ---. The dash
+      // form is checked after the rule test below would have caught a
+      // bare --- with nothing above it.
+      if (para.length === 0 && i + 1 < lines.length
+          && /^(=+|-+)\s*$/.test(lines[i + 1]) && t !== '') {
+        flushAll();
+        var lvl2 = lines[i + 1].trim()[0] === '=' ? 1 : 2;
+        out.push('<h' + lvl2 + '>' + inline(t) + '</h' + lvl2 + '>');
+        i++;
+        continue;
+      }
+
       var h = t.match(/^(#{1,6})\s+(.*)$/);
       if (h) {
         flushAll();
         var lvl = Math.min(h[1].length, 3);
-        out.push('<h' + lvl + '>' + inline(h[2]) + '</h' + lvl + '>');
+        out.push('<h' + lvl + '>' + inline(h[2].replace(/\s*#+\s*$/, '')) + '</h' + lvl + '>');
         continue;
       }
 
@@ -157,18 +252,114 @@
       var q = t.match(/^>\s?(.*)$/);
       if (q) { flushAll(); out.push('<blockquote>' + inline(q[1]) + '</blockquote>'); continue; }
 
+      // A table: a row of pipes, then a row of dashes, then the body.
+      // Checked before lists, because a separator row like |---|---|
+      // would otherwise be read as a bullet.
+      if (t.indexOf('|') !== -1 && i + 1 < lines.length
+          && /^\s*\|?[\s:-]*-[\s:|-]*\|?\s*$/.test(lines[i + 1])
+          && lines[i + 1].indexOf('-') !== -1) {
+        flushAll();
+
+        function cells(row) {
+          return row.trim().replace(/^\||\|$/g, '').split('|')
+                    .map(function(c){ return c.trim(); });
+        }
+
+        var head = cells(t);
+        var aligns = cells(lines[i + 1]).map(function(c){
+          if (/^:.*:$/.test(c)) return 'center';
+          if (/:$/.test(c)) return 'right';
+          return 'left';
+        });
+
+        var rows = [];
+        var j = i + 2;
+        while (j < lines.length && lines[j].indexOf('|') !== -1
+               && lines[j].trim() !== '') {
+          rows.push(cells(lines[j]));
+          j++;
+        }
+
+        function cell(tag, text, k) {
+          var a = aligns[k] || 'left';
+          return '<' + tag + (a !== 'left' ? ' style="text-align:' + a + '"' : '')
+            + '>' + inline(text) + '</' + tag + '>';
+        }
+
+        var html = '<div class="tablewrap"><table><thead><tr>'
+          + head.map(function(c, k){ return cell('th', c, k); }).join('')
+          + '</tr></thead><tbody>'
+          + rows.map(function(r){
+              return '<tr>' + head.map(function(_, k){
+                return cell('td', r[k] === undefined ? '' : r[k], k);
+              }).join('') + '</tr>';
+            }).join('')
+          + '</tbody></table></div>';
+
+        out.push(html);
+        i = j - 1;
+        continue;
+      }
+
+      // Lists, including indented ones. The indent of the original line
+      // is what decides nesting, so this looks at `line` rather than the
+      // trimmed `t`.
       var ul = t.match(/^[-*+]\s+(.*)$/);
       var ol = t.match(/^\d+[.)]\s+(.*)$/);
       if (ul || ol) {
         flushPara();
         var tag = ul ? 'ul' : 'ol';
-        if (!list || list.tag !== tag) { flushList(); list = { tag: tag, items: [] }; }
-        list.items.push('<li>' + inline((ul || ol)[1]) + '</li>');
+        var indent = (line.match(/^[ \t]*/)[0] || '')
+          .replace(/\t/g, '    ').length;
+        var depth = Math.min(Math.floor(indent / 2), 4);
+        var body = (ul || ol)[1];
+
+        // A task list: "- [ ] water the plants". Shown with a mark
+        // rather than a live checkbox, because nothing here can record
+        // someone ticking it.
+        var task = body.match(/^\[( |x|X)\]\s+(.*)$/);
+        var li = task
+          ? '<li class="task"><span class="box">'
+            + (task[1].toLowerCase() === 'x' ? '\u2713' : '\u2610')
+            + '</span>' + inline(task[2]) + '</li>'
+          : '<li>' + inline(body) + '</li>';
+
+        if (!list) {
+          list = { levels: [{ tag: tag, depth: depth, items: [] }] };
+        }
+
+        var top = list.levels[list.levels.length - 1];
+
+        if (depth > top.depth) {
+          list.levels.push({ tag: tag, depth: depth, items: [] });
+        } else {
+          // Close any levels deeper than this line and fold them into
+          // the item above.
+          while (list.levels.length > 1 && depth < top.depth) {
+            var closed = list.levels.pop();
+            var parent = list.levels[list.levels.length - 1];
+            var nested = '<' + closed.tag + '>' + closed.items.join('')
+              + '</' + closed.tag + '>';
+            if (parent.items.length) {
+              parent.items[parent.items.length - 1] =
+                parent.items[parent.items.length - 1]
+                  .replace(/<\/li>$/, nested + '</li>');
+            } else {
+              parent.items.push('<li>' + nested + '</li>');
+            }
+            top = parent;
+          }
+          if (top.tag !== tag && depth === top.depth && !top.items.length) {
+            top.tag = tag;
+          }
+        }
+
+        list.levels[list.levels.length - 1].items.push(li);
         continue;
       }
 
       flushList();
-      para.push(t);
+      para.push({ text: t, brk: /(  |\\)$/.test(line) });
     }
     flushAll();
     return out.join('\n');
