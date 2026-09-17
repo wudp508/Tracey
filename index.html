@@ -1256,6 +1256,12 @@
       // from the words is often right and sometimes is not, and a tag
       // can be mistyped past recognising.
       function catRow(n) {
+        // Not on a leg of a round trip. It is a ride by definition, the
+        // change would not survive Tracey's next update to that event,
+        // and the journey line only resolves a pickup and a drop-off for
+        // rides. A control that half-works is worse than none.
+        if (n.pair_key) return '';
+
         return '<div class="catrow"><span class="lbl">Kind</span>'
           + CATS.map(function(c){
               var here = (catBy[n.category] ? catBy[n.category].key : 'other') === c.key;
