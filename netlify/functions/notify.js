@@ -70,6 +70,42 @@ function addAttendee(ics, email, name) {
 
 // Sends the invitation to the volunteer.
 //
+
+// ---------- keeping a record of what went out ----------
+//
+// Email is fire-and-forget so a friend can still claim when Brevo is
+// down. The cost of that is silence: an invitation that never arrived
+// used to leave no trace at all. Every attempt is now recorded, with
+// enough to send it again.
+//
+// This never throws. A failure to record a failure must not become a
+// second failure.
+async function record(kind, ok, recipient, needId, detail, payload) {
+  const { SUPABASE_URL, SUPABASE_KEY, INGEST_TOKEN } = process.env;
+  if (!SUPABASE_URL || !SUPABASE_KEY || !INGEST_TOKEN) return;
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/rpc/log_send`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      },
+      body: JSON.stringify({
+        p_token: INGEST_TOKEN,
+        p_kind: kind,
+        p_ok: ok === true,
+        p_recipient: recipient || null,
+        p_need_id: needId || null,
+        p_detail: detail ? String(detail).slice(0, 500) : null,
+        p_payload: payload || null
+      })
+    });
+  } catch (e) {
+    console.error('Could not record the send', e);
+  }
+}
+
 // The calendar has to arrive as an inline text/calendar part with
 // method=REQUEST, not as a file attachment. That is what makes Gmail
 // show its Yes / Maybe / No card instead of a paperclip. Brevo's HTTP
@@ -310,6 +346,73 @@ export default async (request) => {
     }
   }
 
+  // Telling a friend where she lives, once, when a coordinator says so.
+  // In an inbox rather than only on a page they would have to go and
+  // find — and worth a sentence about not passing it on.
+  if (action === 'address-shared') {
+    const addr = (body.address || '').trim();
+    const to = (body.email || '').trim();
+    const who = (body.name || '').trim();
+    if (!addr || !to) return new Response('Bad request', { status: 400 });
+
+    const first = who.split(/\s+/)[0] || 'there';
+    const site = (SITE_URL || '').replace(/\/+$/, '');
+
+    const html = `
+      <div style="font-family:-apple-system,Segoe UI,sans-serif;font-size:15px;
+                  line-height:1.6;color:#2B2321;max-width:460px">
+        <p style="font-size:17px;font-weight:600;margin:0 0 14px">
+          ${esc(first)}, here is Tracey&rsquo;s address</p>
+        <p style="margin:0 0 16px;font-size:16px">
+          <strong>${esc(addr)}</strong></p>
+        <p style="margin:0 0 14px">Most pickups are from her door, so this is
+          what you need for a ride. It will show on the signup page from now on
+          as well.</p>
+        <p style="margin:0;color:#6E6558;font-size:13.5px">
+          Please keep it to yourself. The signup page can be forwarded, which is
+          why it does not show her address to everyone.</p>
+        ${site ? `<p style="margin:18px 0 0"><a href="${site}" style="color:#3D5A5B">Open the signup page</a></p>` : ''}
+      </div>`;
+
+    try {
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'accept': 'application/json',
+          'api-key': BREVO_API_KEY
+        },
+        body: JSON.stringify({
+          sender: { email: NOTIFY_FROM, name: 'For Tracey' },
+          to: [{ email: to, name: who || undefined }],
+          replyTo: { email: NOTIFY_FROM },
+          subject: "Tracey's address, for when you are driving",
+          htmlContent: html,
+          textContent: `${first}, here is Tracey's address.\n\n${addr}\n\n`
+            + `Most pickups are from her door, so this is what you need for a `
+            + `ride. Please keep it to yourself \u2014 the signup page can be `
+            + `forwarded, which is why it does not show her address to everyone.`
+        })
+      });
+      if (!res.ok) {
+        const why = await res.text();
+        console.error('Address email failed:', res.status, why);
+        await record('address', false, to, null, res.status + ': ' + why.slice(0, 200),
+                     { action: 'address-shared', email: to, name: who, address: addr });
+        return new Response('Send failed', { status: 502 });
+      }
+      await record('address', true, to, null, null, null);
+      return new Response(JSON.stringify({ sent: true }), {
+        status: 200, headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (e) {
+      console.error('Brevo unreachable', e);
+      await record('address', false, to, null, String(e).slice(0, 200),
+                   { action: 'address-shared', email: to, name: who, address: addr });
+      return new Response('Send failed', { status: 502 });
+    }
+  }
+
   // A friend reporting that something is not working. The value here is
   // not the report itself so much as the permission: someone who would
   // never text about a small thing will tap a button that invites it.
@@ -433,9 +536,14 @@ export default async (request) => {
         })
       });
       if (!res.ok) {
-        console.error('Access-granted email failed:', res.status, await res.text());
+        const why = await res.text();
+        console.error('Access-granted email failed:', res.status, why);
+        await record('journal-link', false, addr, null,
+                     res.status + ': ' + why.slice(0, 200),
+                     { action: 'access-granted', email: addr, name: who, again: again });
         return new Response('Send failed', { status: 502 });
       }
+      await record('journal-link', true, addr, null, null, null);
       return new Response(JSON.stringify({ sent: true, to: addr }), {
         status: 200, headers: { 'Content-Type': 'application/json' }
       });
@@ -521,10 +629,18 @@ export default async (request) => {
           })
         });
         if (!vres.ok) {
-          console.error('Cancellation to volunteer failed:', vres.status, await vres.text());
+          const why = await vres.text();
+          console.error('Cancellation to volunteer failed:', vres.status, why);
+          await record('cancelled', false, need.email, id,
+                       vres.status + ': ' + why.slice(0, 200),
+                       { id: id, action: 'cancelled' });
+        } else {
+          await record('cancelled', true, need.email, id, null, null);
         }
       } catch (e) {
         console.error('Could not tell the volunteer', e);
+        await record('cancelled', false, need.email, id, String(e).slice(0, 200),
+                     { id: id, action: 'cancelled' });
       }
     }
 
@@ -612,6 +728,15 @@ export default async (request) => {
     });
     const out = await res.text();
     if (!res.ok) {
+      const why = await res.text();
+      console.error('Coordinator email failed:', res.status, why);
+      await record(action, false, NOTIFY_TO, id,
+                   res.status + ': ' + why.slice(0, 200),
+                   { id: id, action: action });
+    } else {
+      await record(action, true, NOTIFY_TO, id, null, null);
+    }
+    if (!res.ok) {
       console.error('Brevo rejected the send:', res.status, out);
       return new Response(JSON.stringify({ error: 'brevo rejected', status: res.status, detail: out.slice(0, 300) }), {
         status: 502, headers: { 'Content-Type': 'application/json' }
@@ -643,6 +768,13 @@ export default async (request) => {
               SMTP_LOGIN: process.env.SMTP_LOGIN,
               SMTP_KEY:   process.env.SMTP_KEY
             }, detail, action);
+
+            // The calendar invitation is the one a friend actually
+            // needs. If it did not go, that has to be visible.
+            var inviteOk = inviteResult.indexOf('invite sent') === 0;
+            await record('invite', inviteOk, detail.email, id,
+                         inviteOk ? null : inviteResult,
+                         { id: id, action: action });
           } else {
             inviteResult = 'no volunteer email on record';
           }
