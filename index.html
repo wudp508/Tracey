@@ -84,7 +84,7 @@
   .gate{background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:18px}
   .gate h2{font-family:'Fraunces',serif;font-size:1.2rem;font-weight:500;margin:0 0 6px}
   .gate p{color:var(--text-muted);font-size:.88rem;line-height:1.5;margin:0 0 14px}
-  .chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:20px;scrollbar-width:none}
+  .chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin:0 0 16px;scrollbar-width:none}
   .chips::-webkit-scrollbar{display:none}
   .chip{flex:0 0 auto;border:1px solid var(--border);background:var(--card-bg);color:var(--text);
     font-family:inherit;font-size:.81rem;font-weight:500;padding:7px 13px;border-radius:100px;
@@ -284,15 +284,15 @@
      things on the page do. */
   .needs-banner{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;
     background:#EFF2EC;border:1px solid #DDE4D6;border-radius:11px;
-    padding:12px 15px;margin:22px 0 14px}
+    padding:12px 15px;margin:26px 0 12px}
   .needs-banner h2{font-family:'Fraunces',serif;font-size:1.18rem;font-weight:600;
     margin:0;color:var(--text);letter-spacing:-.01em}
   .needs-banner .n{font-size:.76rem;font-weight:700;color:#fff;
     background:var(--sage);border-radius:100px;padding:2px 9px}
   .needs-banner p{flex:1 1 100%;margin:3px 0 0;font-size:.83rem;
     color:var(--text-muted);line-height:1.45}
-  .together{font-size:.85rem;color:var(--text-muted);line-height:1.5;
-    margin:24px 0 22px;padding:0 2px}
+  .together{font-size:.83rem;color:var(--text-muted);line-height:1.5;
+    margin:0 0 16px;padding:0 2px}
   .footline{text-align:center;padding:30px 0 6px;border-top:1px solid var(--border);
     margin-top:26px}
   .footline button{font-family:inherit;font-size:.82rem;font-weight:500;
@@ -1714,8 +1714,9 @@
       + addHomeCard()
       + newBar
       + yoursBox()
-      + togetherLine()
-      + '<div class="chips">'+chips+'</div>'
+      // The banner announces the section; the chips narrow it. Reading
+      // order should match that, or the filters look like they belong to
+      // whatever came before them.
       + '<div class="needs-banner">'
       +   '<h2>Still needs someone</h2>'
       +   (open.length ? '<span class="n">' + open.length + '</span>' : '')
@@ -1723,6 +1724,8 @@
             ? 'One tap signs you up \u2014 the invitation comes to your email.'
             : 'Nothing at the moment.') + '</p>'
       + '</div>'
+      + '<div class="chips">'+chips+'</div>'
+      + togetherLine()
       + (openSoon.length ? openSoon.map(row).join('')
           : '<div class="empty">Everything\u2019s covered right now. Check back soon, or see what\u2019s already handled below.</div>')
       + moreLine
