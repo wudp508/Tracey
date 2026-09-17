@@ -95,6 +95,28 @@ export default async () => {
     }
   }
 
+  // ---------- anything that was meant to be emailed and was not ----------
+  if (SUPABASE_URL && SUPABASE_KEY && INGEST_TOKEN) {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/failed_send_count`, {
+        method: 'POST',
+        signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined,
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`
+        },
+        body: JSON.stringify({ p_token: INGEST_TOKEN })
+      });
+      if (res.ok) {
+        const n = parseInt(await res.text(), 10) || 0;
+        record('emails delivered', n === 0,
+               n ? n + ` email${n === 1 ? '' : 's'} did not go out in the last week`
+                 : '');
+      }
+    } catch (e) { /* the database check above already covers being down */ }
+  }
+
   // ---------- the endpoints the mail relay posts to ----------
   const base = (SITE_URL || '').replace(/\/+$/, '');
   if (base) {
