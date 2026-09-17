@@ -61,9 +61,17 @@
     background:var(--card-bg);color:var(--text-muted);border-radius:100px;padding:6px 12px;
     cursor:pointer;font-family:inherit}
   .modetoggle.on{background:var(--text);color:#fff;border-color:var(--text)}
-  .me{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--card-bg);
-    border:1px solid var(--border);border-radius:9px;padding:10px 12px;margin-bottom:18px;font-size:.85rem}
+  /* The two standing items — who you are, and her writing — sit side by
+     side on one compact row rather than two full-width bars. That keeps
+     the chips and the first needs on screen when the page loads, which
+     is what anybody opened it for. */
+  .toprow{display:flex;flex-wrap:wrap;align-items:stretch;gap:8px;margin:0 0 18px}
+  .me{display:flex;align-items:center;gap:8px;background:var(--card-bg);
+    border:1px solid var(--border);border-radius:9px;padding:8px 11px;
+    font-size:.8rem;flex:0 1 auto;min-width:0}
+  .me .who{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .me span{color:var(--text-muted)} .me strong{color:var(--text);font-weight:600}
+  .me button{flex:0 0 auto}
   .gate{background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:18px}
   .gate h2{font-family:'Fraunces',serif;font-size:1.2rem;font-weight:500;margin:0 0 6px}
   .gate p{color:var(--text-muted);font-size:.88rem;line-height:1.5;margin:0 0 14px}
@@ -152,9 +160,10 @@
   .newbar{background:#FBF3EE;border:1px solid #E8D3C4;border-radius:9px;
     padding:10px 13px;margin:0 0 16px;font-size:.86rem;font-weight:600;
     color:var(--clay);line-height:1.45}
-  .journey .count{display:inline-block;font-size:.68rem;font-weight:700;color:#fff;
-    background:var(--clay);border-radius:100px;padding:2px 7px;margin-left:7px;
-    vertical-align:middle;letter-spacing:.03em}
+  .journey .count{display:inline-block;font-size:.66rem;font-weight:700;color:#fff;
+    background:var(--clay);border-radius:100px;padding:2px 7px;
+    letter-spacing:.03em}
+  .journey .count.waiting{background:var(--grey)}
   .ask-bg{position:fixed;inset:0;background:rgba(43,35,33,.45);z-index:90;
     display:flex;align-items:center;justify-content:center;padding:22px}
   .ask{background:var(--card-bg);border-radius:14px;padding:22px 20px 18px;
@@ -210,11 +219,13 @@
   .assign input{font-size:.87rem;padding:8px 10px;margin-bottom:7px}
   .arow{display:flex;gap:8px}
   .arow input{flex:1;min-width:0}
-  .journey{display:block;width:100%;text-align:left;background:var(--card-bg);
-    border:1px solid var(--border);border-radius:10px;padding:13px 15px;
-    margin:0 0 20px;cursor:pointer;font-family:inherit}
-  .journey strong{display:block;font-size:.95rem;font-weight:600;color:var(--text);margin-bottom:3px}
-  .journey span{font-size:.83rem;color:var(--text-muted);line-height:1.45}
+  .journey{display:flex;align-items:center;gap:7px;text-align:left;
+    background:var(--card-bg);border:1px solid var(--border);border-radius:9px;
+    padding:8px 13px;cursor:pointer;font-family:inherit;flex:0 0 auto;
+    -webkit-tap-highlight-color:transparent}
+  .journey:active{background:#F4F1EA}
+  .journey strong{font-size:.82rem;font-weight:600;color:var(--text)}
+  .journey .sub{display:none}
   .tierrow{display:flex;justify-content:space-between;align-items:center;gap:10px;
     padding:11px 0;border-top:1px solid var(--border)}
   .tierrow .who{min-width:0}
@@ -557,27 +568,28 @@
 
   // The journal entry point. Always visible, so nobody has to be told
   // it exists. What it does depends on where they stand.
+  // Compact, because it lives on the top row beside the signed-in chip.
+  // The explaining sentence moves into the prompt that appears when
+  // somebody taps it, where it is actually read.
   function journeyButton() {
     var state = access ? access.access : 'none';
+
     if (state === 'approved' || state === 'close') {
       var unread = (access && access.unread) ? Number(access.unread) : 0;
       return '<button class="journey" data-action="journal">'
-        + '<strong>Tracey\u2019s journey'
-        +   (unread ? '<span class="count">' + unread + ' new</span>' : '')
-        + '</strong>'
-        + '<span>' + (unread
-            ? (unread === 1 ? 'She has written something new.'
-                            : 'She has written ' + unread + ' new pieces.')
-            : 'Her own words on how things are going.') + '</span></button>';
+        + '<strong>Tracey\u2019s journey</strong>'
+        + (unread ? '<span class="count">' + unread + '</span>' : '')
+        + '</button>';
     }
+
     if (access && access.requested) {
       return '<button class="journey" data-action="journey-pending">'
         + '<strong>Tracey\u2019s journey</strong>'
-        + '<span>You have asked to read her updates. ' + esc(APPROVER) + ' will let you in shortly.</span></button>';
+        + '<span class="count waiting">asked</span></button>';
     }
+
     return '<button class="journey" data-action="journey-ask">'
-      + '<strong>Tracey\u2019s journey</strong>'
-      + '<span>She writes about how things are going. Tap to ask for access.</span></button>';
+      + '<strong>Tracey\u2019s journey</strong></button>';
   }
 
   // Written for friends rather than for whoever built it: plain language,
@@ -1548,7 +1560,9 @@
         + gate();
       return;
     }
-    sub.textContent = 'Pick anything you can take. Everyone sees the same list, so nothing gets doubled up.';
+    // Short on purpose: every line here is a line of the list somebody
+    // does not see when the page loads. The longer version is in Help.
+    sub.textContent = 'Take anything that fits your week.';
 
     var list = cat === 'all' ? needs : needs.filter(function(n){ return n.category === cat; });
     var open = list.filter(function(n){ return n.status === 'OPEN'; });
@@ -1661,9 +1675,12 @@
       + (showHelp ? helpPanel() : '')
       + addHomeCard()
       + newBar
-      + '<div class="me"><span>Signed in as <strong>'+esc(me.name)+'</strong> \u00b7 '+esc(me.email)+'</span>'
-      + '<button class="btn link" data-action="editme">Change</button></div>'
-      + journeyButton()
+      + '<div class="toprow">'
+      +   '<div class="me"><span class="who"><strong>'
+      +     esc(me.name) + '</strong></span>'
+      +     '<button class="btn link" data-action="editme">Change</button></div>'
+      +   journeyButton()
+      + '</div>'
       + yoursBox()
       + togetherLine()
       + '<div class="chips">'+chips+'</div>'
