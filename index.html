@@ -255,14 +255,10 @@
   .pastbar button{font-size:.78rem;font-weight:600;padding:6px 12px;border-radius:6px;
     border:1px solid var(--border);background:var(--card-bg);color:var(--text);
     cursor:pointer;font-family:inherit;flex:0 0 auto}
-  .yours-box{background:var(--card-bg);border:1px solid var(--sage);border-radius:11px;
-    padding:13px 15px;margin:0 0 16px}
-  .yours-box h3{font-family:'Fraunces',serif;font-size:1rem;font-weight:600;
-    margin:0 0 8px;color:var(--text)}
-  .yours-box ul{margin:0;padding:0;list-style:none}
-  .yours-box li{font-size:.88rem;line-height:1.5;margin-bottom:5px;color:var(--text)}
-  .yours-box li:last-child{margin-bottom:0}
-  .yours-box .w{color:var(--text-muted)}
+  /* A card this friend has taken. It already had a green edge; at the
+     top of the page under "You are covering" it should also be plainly
+     the thing they came back to look at. */
+  .row.mine{border-color:var(--sage);box-shadow:0 0 0 1px var(--sage)}
   .together{font-size:.85rem;color:var(--text-muted);line-height:1.5;
     margin:0 0 20px;padding:0 2px}
   .footline{text-align:center;padding:30px 0 6px;border-top:1px solid var(--border);
@@ -367,6 +363,7 @@
   var showPast = false;   // coordinator view: include finished needs
   var showReq = false;    // the ask-for-something form
   var showAll = false;    // friend view: beyond the next fortnight
+  var showMine = false;   // all of their own claims, not just the next two
   var newIds = null;      // ids that were new on arrival, held for the visit
   var installEvt = null;  // Android only; iOS never fires this
   var hideAdd = false;
@@ -869,25 +866,45 @@
 
   // What this friend has taken on. Shown above everything else, because
   // their own commitments are the one thing they should never hunt for.
+  // What this friend has taken on, as the actual cards rather than a
+  // summary. A list of titles meant they still had to go and find the
+  // thing to see the address, tap Directions, or free it up — which is
+  // most of why anybody opens this page having already signed up.
+  //
+  // These are left out of "Already covered" below, so nothing appears
+  // twice.
   function yoursBox() {
     var mine = needs.filter(function(n){
       return n.status === 'FILLED' && n.is_mine === true;
-    }).sort(function(a,b){ return a.date.localeCompare(b.date); });
+    }).sort(function(a, b){
+      if (!a.date && !b.date) return 0;
+      if (!a.date) return -1;
+      if (!b.date) return 1;
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+      return 0;
+    });
 
     if (!mine.length) return '';
 
-    return '<div class="yours-box">'
-      + '<h3>You are covering</h3><ul>'
-      + mine.map(function(n){
-          return '<li><strong>' + esc(n.title) + '</strong>'
-            + '<span class="w"> \u00b7 '
-            +   (n.anytime
-                  ? (n.date ? 'by ' + fmtD(n.date) : 'anytime')
-                    + (n.start_time ? ', ' + esc(n.start_time) : '')
-                  : fmtD(n.date) + ', ' + esc(n.start_time))
-            + '</span></li>';
-        }).join('')
-      + '</ul></div>';
+    // Only the next couple, or somebody covering five things would have
+    // to scroll past their own list to reach anything they could pick
+    // up — which inverts what the page is for.
+    var SHOW = 2;
+    var visible = showMine ? mine : mine.slice(0, SHOW);
+    var rest = mine.length - visible.length;
+
+    return '<div class="section-title">You are covering</div>'
+      + '<div class="section-sub">'
+      +   (mine.length === 1 ? 'One thing' : mine.length + ' things')
+      +   '. Free one up here if something comes up.</div>'
+      + visible.map(row).join('')
+      + (rest > 0
+          ? '<div class="moreline"><button data-action="showmine">'
+            + 'Show ' + rest + ' more you are covering</button></div>'
+          : (showMine && mine.length > SHOW
+              ? '<div class="moreline"><button data-action="showmine">'
+                + 'Show fewer</button></div>'
+              : ''));
   }
 
   // One collective line, never a tally per person. Who did what is
@@ -1535,7 +1552,10 @@
 
     var list = cat === 'all' ? needs : needs.filter(function(n){ return n.category === cat; });
     var open = list.filter(function(n){ return n.status === 'OPEN'; });
-    var cov  = list.filter(function(n){ return n.status === 'FILLED'; });
+    // Their own are shown at the top in full, so they are not repeated
+    // here.
+    var cov  = list.filter(function(n){
+      return n.status === 'FILLED' && n.is_mine !== true; });
     // How many are actually open in each category. Counting everything
     // would include things already covered, which is not a number a
     // friend can do anything with.
@@ -1972,6 +1992,12 @@
 
     if (a === 'problem') {
       await reportProblem();
+      return;
+    }
+
+    if (a === 'showmine') {
+      showMine = !showMine;
+      render();
       return;
     }
 
