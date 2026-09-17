@@ -123,12 +123,39 @@ export default async (request) => {
     const first = (person.name || '').trim().split(/\s+/)[0] || 'there';
     const items = person.items;
 
-    const rows = items.map(n =>
-      `<li style="margin-bottom:10px">
+    const rows = items.map(n => {
+      // Both ends, because the implicit one is the one they do not know.
+      // A link rather than an address: it answers how far, from wherever
+      // they happen to be, which is the question the night before.
+      // The pickup link starts from wherever they are. The drop-off link
+      // starts from the pickup, because by then that is where they will
+      // be standing.
+      // An email cannot tell what device will open it, and Apple's own
+      // links do nothing on Android. maps.apple.com redirects Android
+      // and desktop browsers to a usable map, so it is the one link that
+      // works for everybody — and on an iPhone it opens Apple Maps,
+      // which is where most of these friends are.
+      const maps = (dest, origin) =>
+        'https://maps.apple.com/?daddr=' + encodeURIComponent(dest)
+        + (origin ? '&saddr=' + encodeURIComponent(origin) : '')
+        + '&dirflg=d';
+      const end = (p, from) =>
+        `${esc(p)} <a href="${maps(p, from)}" style="color:#3D5A5B">`
+        + (from ? 'route' : 'directions') + '</a>';
+
+      const journey = (n.pickup || n.dropoff)
+        ? (n.pickup && n.dropoff
+            ? end(n.pickup, null) + ' &rarr; ' + end(n.dropoff, n.pickup)
+            : (n.pickup ? 'Collect from ' + end(n.pickup, null)
+                        : 'Taking her to ' + end(n.dropoff, null)))
+        : (n.location ? end(n.location, null) : '');
+
+      return `<li style="margin-bottom:10px">
          <strong>${esc(n.title)}</strong><br>
-         ${esc(when(n))}${n.location ? '<br>' + esc(n.location) : ''}
+         ${esc(when(n))}${journey ? '<br>' + journey : ''}
          ${n.instructions ? `<br><span style="color:#6E6558">${esc(n.instructions)}</span>` : ''}
-       </li>`).join('');
+       </li>`;
+    }).join('');
 
     const html = `
       <div style="font-family:-apple-system,Segoe UI,sans-serif;font-size:15px;
@@ -146,7 +173,11 @@ export default async (request) => {
 
     const text = `${first}, a reminder about tomorrow.\n\n`
       + `You are covering ${items.length === 1 ? 'this' : 'these'} on ${dayName}:\n\n`
-      + items.map(n => `- ${n.title}\n  ${when(n)}${n.location ? '\n  ' + n.location : ''}`).join('\n\n')
+      + items.map(n => {
+          const j = (n.pickup && n.dropoff) ? n.pickup + ' -> ' + n.dropoff
+                  : (n.pickup || n.dropoff || n.location || '');
+          return `- ${n.title}\n  ${when(n)}${j ? '\n  ' + j : ''}`;
+        }).join('\n\n')
       + `\n\nIf something has come up, open the page and free it up.`;
 
     if (dryRun) { sentCount++; continue; }
