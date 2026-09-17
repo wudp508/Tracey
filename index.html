@@ -118,10 +118,16 @@
   .journey-line{font-size:.83rem;color:var(--text-muted);line-height:1.5;
     margin:0 0 10px}
   .journey-line .to{color:var(--text-muted);margin:0 5px}
-  .journey-line a{color:var(--teal);text-decoration:none;font-size:.76rem;
-    font-weight:600;white-space:nowrap;margin-left:5px;
-    border-bottom:1px solid #CFDCDA}
-  .journey-line a:active{color:var(--text)}
+  /* A pill rather than tinted text. The same shape as the Details
+     toggle on these cards, because it does the same kind of job: an
+     obvious thing to tap. Underlined teal read as prose. */
+  .journey-line a{display:inline-block;color:var(--teal);text-decoration:none;
+    font-size:.72rem;font-weight:700;white-space:nowrap;margin-left:6px;
+    background:#EDF1F0;border:1px solid #D8E2E0;border-radius:100px;
+    padding:3px 10px;vertical-align:1px;
+    -webkit-tap-highlight-color:transparent}
+  .journey-line a:active{background:#E2E9E7}
+  .journey-line a::before{content:'↗';margin-right:4px;font-weight:400}
   .journey-line strong{font-weight:600;color:var(--text)}
   .row.mine .journey-line strong{color:var(--sage)}
   .anytime-chip{display:inline-block;font-size:.68rem;font-weight:700;
