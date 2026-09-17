@@ -65,10 +65,14 @@
      side on one compact row rather than two full-width bars. That keeps
      the chips and the first needs on screen when the page loads, which
      is what anybody opened it for. */
-  .toprow{display:flex;flex-wrap:wrap;align-items:stretch;gap:8px;margin:0 0 18px}
-  .me{display:flex;align-items:center;gap:8px;background:var(--card-bg);
-    border:1px solid var(--border);border-radius:9px;padding:8px 11px;
-    font-size:.8rem;flex:0 1 auto;min-width:0}
+  /* Stacked on the right, under Help and Coordinator, so the title and
+     its line keep the left and nothing runs the width of the page. */
+  .topbtns{display:flex;flex-direction:column;align-items:flex-end;gap:7px;
+    flex:0 0 auto}
+  .topbtns .pair{display:flex;gap:7px}
+  .me{display:flex;align-items:center;gap:7px;background:var(--card-bg);
+    border:1px solid var(--border);border-radius:100px;padding:6px 12px;
+    font-size:.78rem;flex:0 0 auto;white-space:nowrap}
   .me .who{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .me span{color:var(--text-muted)} .me strong{color:var(--text);font-weight:600}
   .me button{flex:0 0 auto}
@@ -220,9 +224,9 @@
   .arow{display:flex;gap:8px}
   .arow input{flex:1;min-width:0}
   .journey{display:flex;align-items:center;gap:7px;text-align:left;
-    background:var(--card-bg);border:1px solid var(--border);border-radius:9px;
-    padding:8px 13px;cursor:pointer;font-family:inherit;flex:0 0 auto;
-    -webkit-tap-highlight-color:transparent}
+    background:var(--card-bg);border:1px solid var(--border);border-radius:100px;
+    padding:6px 13px;cursor:pointer;font-family:inherit;flex:0 0 auto;
+    white-space:nowrap;-webkit-tap-highlight-color:transparent}
   .journey:active{background:#F4F1EA}
   .journey strong{font-size:.82rem;font-weight:600;color:var(--text)}
   .journey .sub{display:none}
@@ -270,6 +274,18 @@
      top of the page under "You are covering" it should also be plainly
      the thing they came back to look at. */
   .row.mine{border-color:var(--sage);box-shadow:0 0 0 1px var(--sage)}
+  /* Open needs is the reason the page exists. It was a heading among
+     headings; now it announces itself the way the other two standing
+     things on the page do. */
+  .needs-banner{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;
+    background:#EFF2EC;border:1px solid #DDE4D6;border-radius:11px;
+    padding:12px 15px;margin:22px 0 14px}
+  .needs-banner h2{font-family:'Fraunces',serif;font-size:1.18rem;font-weight:600;
+    margin:0;color:var(--text);letter-spacing:-.01em}
+  .needs-banner .n{font-size:.76rem;font-weight:700;color:#fff;
+    background:var(--sage);border-radius:100px;padding:2px 9px}
+  .needs-banner p{flex:1 1 100%;margin:3px 0 0;font-size:.83rem;
+    color:var(--text-muted);line-height:1.45}
   .together{font-size:.85rem;color:var(--text-muted);line-height:1.5;
     margin:0 0 20px;padding:0 2px}
   .footline{text-align:center;padding:30px 0 6px;border-top:1px solid var(--border);
@@ -323,8 +339,11 @@
   <div class="topbar">
     <div><h1 id="h1">For Tracey</h1><p class="sub" id="sub"></p></div>
     <div class="topbtns">
-      <button class="modetoggle" id="helpbtn">Help</button>
-      <button class="modetoggle" id="mode">Coordinator</button>
+      <div class="pair">
+        <button class="modetoggle" id="helpbtn">Help</button>
+        <button class="modetoggle" id="mode">Coordinator</button>
+      </div>
+      <div id="topstack"></div>
     </div>
   </div>
   <div id="content" class="status">Loading…</div>
@@ -336,6 +355,7 @@
 (function () {
   var cfg = window.TRACEY_CONFIG || {};
   var content = document.getElementById('content');
+  var topStack = document.getElementById('topstack');
   var modeBtn = document.getElementById('mode');
   var h1 = document.getElementById('h1'), sub = document.getElementById('sub');
 
@@ -1269,6 +1289,7 @@
       h1.textContent = 'Coordinator';
       if (!coordData) {
         sub.textContent = '';
+    topStack.innerHTML = '';
         content.innerHTML = banner + '<div class="gate"><h2>Coordinator access</h2>'
           + '<p>Enter the passphrase to see volunteer contact details and pending invites.</p>'
           + '<input type="password" id="c-pass" placeholder="Passphrase" />'
@@ -1276,6 +1297,7 @@
         return;
       }
       sub.textContent = 'Claims waiting on an Outlook invite, and everyone who has registered.';
+      topStack.innerHTML = '';
       var all = coordData.needs || [], vols = coordData.volunteers || [];
       var pend = all.filter(function(n){ return n.status==='FILLED' && !n.invited; });
       var openOnes = all.filter(function(n){ return n.status === 'OPEN'; });
@@ -1548,6 +1570,7 @@
     h1.textContent = 'For Tracey';
     if (!me) {
       sub.textContent = '';
+    topStack.innerHTML = '';
       content.innerHTML = banner
         + '<div class="welcome">'
         + '<p>Tracey is working her way back, and a lot of you have asked how you can help. '
@@ -1562,7 +1585,17 @@
     }
     // Short on purpose: every line here is a line of the list somebody
     // does not see when the page loads. The longer version is in Help.
-    sub.textContent = 'Take anything that fits your week.';
+    sub.textContent = 'Pick anything you can take. Everyone sees the same '
+      + 'list, so nothing gets doubled up.';
+
+    // These two stand apart from the list: who you are, and her writing.
+    // They live beside the title rather than above the needs, so nothing
+    // pushes the list down the page.
+    topStack.innerHTML =
+      '<div class="me"><span class="who"><strong>' + esc(me.name)
+      + '</strong></span>'
+      + '<button class="btn link" data-action="editme">Change</button></div>'
+      + journeyButton();
 
     var list = cat === 'all' ? needs : needs.filter(function(n){ return n.category === cat; });
     var open = list.filter(function(n){ return n.status === 'OPEN'; });
@@ -1675,17 +1708,16 @@
       + (showHelp ? helpPanel() : '')
       + addHomeCard()
       + newBar
-      + '<div class="toprow">'
-      +   '<div class="me"><span class="who"><strong>'
-      +     esc(me.name) + '</strong></span>'
-      +     '<button class="btn link" data-action="editme">Change</button></div>'
-      +   journeyButton()
-      + '</div>'
       + yoursBox()
       + togetherLine()
       + '<div class="chips">'+chips+'</div>'
-      + '<div class="section-title">Open needs</div>'
-      + '<div class="section-sub">'+(openSoon.length ? 'One tap signs you up \u2014 the invitation goes to your email.' : '')+'</div>'
+      + '<div class="needs-banner">'
+      +   '<h2>Still needs someone</h2>'
+      +   (open.length ? '<span class="n">' + open.length + '</span>' : '')
+      +   '<p>' + (openSoon.length
+            ? 'One tap signs you up \u2014 the invitation comes to your email.'
+            : 'Nothing at the moment.') + '</p>'
+      + '</div>'
       + (openSoon.length ? openSoon.map(row).join('')
           : '<div class="empty">Everything\u2019s covered right now. Check back soon, or see what\u2019s already handled below.</div>')
       + moreLine
