@@ -50,7 +50,8 @@
   body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;
        -webkit-font-smoothing:antialiased}
   .app{max-width:640px;margin:0 auto;padding:26px 18px 56px}
-  .topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .topbar{display:flex;justify-content:space-between;align-items:flex-start;
+    gap:14px;margin:0 0 20px}
   h1{font-family:'Fraunces',serif;font-weight:600;font-size:1.9rem;margin:0 0 6px;letter-spacing:-.01em}
   .sub{margin:0 0 18px;color:var(--text-muted);font-size:.93rem;line-height:1.5;max-width:46ch}
   .welcome{background:var(--card-bg);border:1px solid var(--border);border-radius:12px;
@@ -67,9 +68,13 @@
      is what anybody opened it for. */
   /* Stacked on the right, under Help and Coordinator, so the title and
      its line keep the left and nothing runs the width of the page. */
-  .topbtns{display:flex;flex-direction:column;align-items:flex-end;gap:7px;
+  .topbtns{display:flex;flex-direction:column;align-items:flex-end;gap:9px;
     flex:0 0 auto}
   .topbtns .pair{display:flex;gap:7px}
+  /* The two rendered items sit in their own box, so the gap above them
+     matches the gap between them rather than collapsing. */
+  .topbtns #topstack{display:flex;flex-direction:column;align-items:flex-end;
+    gap:9px}
   .me{display:flex;align-items:center;gap:7px;background:var(--card-bg);
     border:1px solid var(--border);border-radius:100px;padding:6px 12px;
     font-size:.78rem;flex:0 0 auto;white-space:nowrap}
@@ -162,7 +167,7 @@
     cursor:pointer;font-family:inherit;flex:0 0 auto}
   .askbar button:disabled{opacity:.55}
   .newbar{background:#FBF3EE;border:1px solid #E8D3C4;border-radius:9px;
-    padding:10px 13px;margin:0 0 16px;font-size:.86rem;font-weight:600;
+    padding:11px 14px;margin:20px 0 18px;font-size:.86rem;font-weight:600;
     color:var(--clay);line-height:1.45}
   .journey .count{display:inline-block;font-size:.66rem;font-weight:700;color:#fff;
     background:var(--clay);border-radius:100px;padding:2px 7px;
@@ -287,7 +292,7 @@
   .needs-banner p{flex:1 1 100%;margin:3px 0 0;font-size:.83rem;
     color:var(--text-muted);line-height:1.45}
   .together{font-size:.85rem;color:var(--text-muted);line-height:1.5;
-    margin:0 0 20px;padding:0 2px}
+    margin:24px 0 22px;padding:0 2px}
   .footline{text-align:center;padding:30px 0 6px;border-top:1px solid var(--border);
     margin-top:26px}
   .footline button{font-family:inherit;font-size:.82rem;font-weight:500;
