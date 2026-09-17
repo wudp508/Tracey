@@ -115,6 +115,15 @@
   .newtag{display:inline-block;font-size:.66rem;font-weight:700;letter-spacing:.06em;
     text-transform:uppercase;color:#fff;background:var(--clay);border-radius:100px;
     padding:2px 7px;margin-left:7px;vertical-align:middle}
+  .journey-line{font-size:.83rem;color:var(--text-muted);line-height:1.5;
+    margin:0 0 10px}
+  .journey-line .to{color:var(--text-muted);margin:0 5px}
+  .journey-line a{color:var(--teal);text-decoration:none;font-size:.76rem;
+    font-weight:600;white-space:nowrap;margin-left:5px;
+    border-bottom:1px solid #CFDCDA}
+  .journey-line a:active{color:var(--text)}
+  .journey-line strong{font-weight:600;color:var(--text)}
+  .row.mine .journey-line strong{color:var(--sage)}
   .anytime-chip{display:inline-block;font-size:.68rem;font-weight:700;
     letter-spacing:.05em;text-transform:uppercase;color:var(--teal);
     background:#EDF1F0;border-radius:100px;padding:2px 8px;margin-right:6px;
@@ -221,6 +230,18 @@
     cursor:pointer;font-family:inherit}
   .postbtns button.on{background:var(--text);border-color:var(--text);color:#fff}
   .postbtns button.danger{color:var(--rose);border-color:var(--rose)}
+  .catrow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:8px 0 2px}
+  .catrow .lbl{font-size:.76rem;color:var(--text-muted);margin-right:2px}
+  .catrow button{font-size:.74rem;font-weight:600;padding:5px 10px;border-radius:6px;
+    border:1px solid var(--border);background:var(--card-bg);color:var(--text-muted);
+    cursor:pointer;font-family:inherit}
+  .catrow button.on{background:var(--text);border-color:var(--text);color:#fff}
+  .failrow{border:1px solid var(--rose);background:#FDF6F5;border-radius:10px;
+    padding:12px 14px;margin-bottom:9px}
+  .failrow h4{margin:0 0 3px;font-size:.9rem;font-weight:600;color:var(--text)}
+  .failrow .fmeta{font-size:.79rem;color:var(--text-muted);line-height:1.5;margin:0 0 9px}
+  .failrow .why{font-family:ui-monospace,monospace;font-size:.72rem;color:var(--rose);
+    word-break:break-word;display:block;margin-top:3px}
   .topbtns{display:flex;gap:7px;flex:0 0 auto}
   .pastbar{display:flex;justify-content:space-between;align-items:center;gap:10px;
     background:var(--card-bg);border:1px solid var(--border);border-radius:9px;
@@ -333,7 +354,9 @@
 
   var needs = [], coordData = null, me = null, cat = 'all';
   var access = null;   // {access:'none'|'approved'|'close', requested:bool}
+  var homeAddr = null; // her street address, only if this friend may have it
   var posts = null;    // Tracey's journal, coordinator view only
+  var fails = [];      // emails that did not go out
   var showHelp = false;
   var showPast = false;   // coordinator view: include finished needs
   var showReq = false;    // the ask-for-something form
@@ -371,6 +394,13 @@
         var ar = await db.rpc('my_access', { p_email: me.email });
         if (!ar.error && ar.data) access = ar.data;
       } catch (e) {}
+
+      // Her address, if this friend is allowed it. Fetched once and used
+      // only to build Directions links — it never appears as text.
+      try {
+        var hr = await db.rpc('home_directions', { p_email: me.email });
+        homeAddr = (!hr.error && hr.data) ? hr.data.address : null;
+      } catch (e) { homeAddr = null; }
     }
     var r = await db.rpc('list_needs', { p_email: me ? me.email : null });
 
@@ -411,6 +441,12 @@
       var pr = await db.rpc('coordinator_posts', { p_pass: pass });
       posts = pr.error ? [] : (pr.data || []);
     } catch (e) { posts = []; }
+
+    // Anything that was meant to be emailed and was not.
+    try {
+      var fr = await db.rpc('failed_sends', { p_pass: pass });
+      fails = fr.error ? [] : (fr.data || []);
+    } catch (e) { fails = []; }
 
     var r = await db.rpc('coordinator_data', { p_pass: pass, p_past: showPast });
 
@@ -666,6 +702,11 @@
         + '<p>Tag the title if the words alone would not say what kind of help '
         + 'it is: <code>#rides</code> <code>#izzy</code> <code>#walks</code> '
         + '<code>#other</code>. The tag is removed before friends see it.</p>'
+        + '<p>The first letter or two is enough \u2014 <code>#r</code>, '
+        + '<code>#wal</code>, <code>#iz</code> \u2014 and a typo is forgiven, '
+        + 'so <code>#ryde</code> and <code>#wlaks</code> both land correctly. '
+        + 'A word it does not recognise is left in the title, which is how you '
+        + 'can tell it was not read as a tag.</p>'
         + '<p>Repeating events work: one invitation becomes one entry per '
         + 'occurrence, each claimable on its own, up to thirty at a time.</p>')
 
@@ -697,6 +738,47 @@
         + '<code>#ask</code> in the subject. Write the deadline in plain words '
         + '\u2014 <em>by Thursday</em>, <em>by tomorrow afternoon</em> \u2014 and '
         + 'it will be read out of the subject.</p>')
+
+      + q('Where to collect her, and where to take her',
+          '<p>A ride names both ends: <em>Home, Mosier \u2192 Providence '
+        + 'Rehab</em> going out, and the reverse coming back.</p>'
+        + '<p>Outlook only holds the destination \u2014 both ends are obvious '
+        + 'to Tracey and neither gets typed \u2014 so her address is held in '
+        + 'settings instead. There is nothing to add when creating an '
+        + 'event.</p>'
+        + '<p>Walks, errands and anything else show their location as '
+        + 'written.</p>')
+
+      + q('Who can see her address',
+          '<p>Cards always say <strong>Home</strong> and the town \u2014 for '
+        + 'everyone, including you. Her street address never appears as text '
+        + 'anywhere on the page.</p>'
+        + '<p>It lives inside the map links instead, which is more useful '
+        + 'anyway: a friend wants to know how far it is from wherever they '
+        + 'are, and a map can answer that.</p>'
+        + '<p><strong>Directions</strong> on the pickup starts from wherever '
+        + 'they are \u2014 that is the question they are asking. '
+        + '<strong>Route</strong> on the destination starts from the pickup, '
+        + 'because by then they will be standing there with her in the car.</p>'
+        + '<p>Tap <strong>Address</strong> next to anyone in Registered friends '
+        + 'to give them that link. They are emailed the address once as well, '
+        + 'so it is in their inbox.</p>'
+        + '<p>Anyone who has claimed a ride gets it regardless \u2014 they '
+        + 'cannot do the job otherwise.</p>'
+        + '<p>Everywhere else \u2014 a clinic, a caf\u00e9 \u2014 has a '
+        + 'Directions link for everybody, because none of those is her front '
+        + 'door.</p>')
+
+      + q('Something is filed under the wrong kind',
+          '<p>Every need in the panel has a row of <strong>Kind</strong> '
+        + 'buttons. Tap the right one and it moves.</p>'
+        + '<p>The category is guessed from the words when there is no tag, and '
+        + 'a title like \u201cPhysio\u201d says nothing about a lift. Rather '
+        + 'than ask Tracey to edit and resend the event, just put it where it '
+        + 'belongs.</p>'
+        + '<p>Nothing is sent to Outlook and nobody is emailed. Where something '
+        + 'sits on this page is a coordination matter, not a change to her '
+        + 'appointment.</p>')
 
       + q('Someone phoned instead of using the page',
           '<p>Use <strong>Sign someone up</strong>. They get the same calendar '
@@ -754,6 +836,20 @@
         + 'away things that should not have been there.</p>'
         + '<p>Nothing is ever deleted by hiding it. Friends only ever see what '
         + 'is ahead of them.</p>')
+
+      + q('An email did not go out',
+          '<p>If the mail service was down when something happened, a '
+        + '<strong>Did not go out</strong> section appears at the top of this '
+        + 'panel listing what was missed \u2014 a calendar invitation, a notice '
+        + 'that something changed, a journal link.</p>'
+        + '<p><strong>Send it again</strong> replays the same message. It is '
+        + 'safe: nothing that already arrived is duplicated.</p>'
+        + '<p><strong>Dealt with</strong> takes it off the list without sending '
+        + '\u2014 for when you have already phoned the person, or it no longer '
+        + 'matters.</p>'
+        + '<p>Claiming never waits on email, which is why a friend can still '
+        + 'sign up when the mail service is down. The cost of that is this '
+        + 'list.</p>')
 
       + q('Checking the system is working',
           '<p>Open <code>/api/health</code> on this site. '
@@ -952,6 +1048,85 @@
     return 'whenever suits you';
   }
 
+  // Where to collect her and where to take her.
+  //
+  // Outlook only ever holds the destination, because both ends are
+  // obvious to Tracey and neither gets typed. A friend claimed a ride
+  // and then had to ask where she lives, which is what this is for.
+  //
+  // Anyone browsing sees "Home" and the town; whoever has taken it sees
+  // the street address, supplied from settings rather than from the
+  // event.
+  // A link into whichever maps app they use, which answers the question
+  // an address on a card never could: how far is that from where I am.
+  //
+  // The pickup link starts from wherever they are — that is the decision
+  // they are making. The drop-off link starts from the pickup, because
+  // by then they will be standing there with Tracey in the car, and
+  // "how far from home" would be the wrong answer.
+  function directionsTo(place, isHome, fromPlace, fromIsHome) {
+    // Her street address only exists inside a link, and only for
+    // somebody allowed to have it.
+    var dest = isHome ? homeAddr : place;
+    if (!dest) return '';
+
+    // Apple Maps on an iPhone or iPad, which is where most of these
+    // friends are. The same link opens Google Maps on Android and in a
+    // browser, so nobody is left out.
+    var origin = fromPlace ? (fromIsHome ? homeAddr : fromPlace) : null;
+    var url = isApple()
+      ? 'https://maps.apple.com/?daddr=' + encodeURIComponent(dest)
+        + (origin ? '&saddr=' + encodeURIComponent(origin) : '')
+        + '&dirflg=d'
+      : 'https://www.google.com/maps/dir/?api=1&destination='
+        + encodeURIComponent(dest)
+        + (origin ? '&origin=' + encodeURIComponent(origin) : '');
+    // No starting point rather than a vague one: the map then uses where
+    // they actually are, which beats a guess.
+
+    return ' <a href="' + url + '" target="_blank" rel="noopener">'
+      + (fromPlace ? 'Route' : 'Directions') + '</a>';
+  }
+
+  function journeyLine(n) {
+    var from = (n.pickup || '').trim();
+    var to = (n.dropoff || '').trim();
+    var label = homeLabel();
+
+    // Not a ride: the location is just where the thing happens.
+    if (!from && !to) {
+      return n.location
+        ? '<p class="loc">' + esc(n.location)
+          + directionsTo(n.location, false, null, false) + '</p>'
+        : '';
+    }
+
+    function end(place, fromPlace) {
+      var isHome = place === label;
+      return '<strong>' + esc(place) + '</strong>'
+        + directionsTo(place, isHome, fromPlace, fromPlace === label);
+    }
+
+    if (from && to) {
+      return '<p class="journey-line">' + end(from, null)
+        + '<span class="to">\u2192</span>' + end(to, from) + '</p>';
+    }
+
+    return '<p class="journey-line">'
+      + (from ? 'Collect from ' + end(from, null)
+              : 'Taking her to ' + end(to, null))
+      + '</p>';
+  }
+
+  // Whatever the database is calling home. Read off the data rather than
+  // hardcoded, so changing it in settings changes it everywhere.
+  function homeLabel() {
+    var r = (needs || []).filter(function(n){
+      return n.category === 'rides' && (n.pickup || n.dropoff); })[0];
+    if (!r) return 'Home';
+    return (r.leg === 'back' ? r.dropoff : r.pickup) || 'Home';
+  }
+
   function pairLine(n) {
     if (!n.partner_id) return '';
 
@@ -1028,7 +1203,7 @@
       + '<div class="bd"><p class="ttl">'+esc(n.title)
       +   ((newIds && newIds[n.id] && n.status === 'OPEN')
             ? '<span class="newtag">New</span>' : '')+'</p>'
-      + (n.location ? '<p class="loc">'+esc(n.location)+'</p>' : '')
+      + journeyLine(n)
       + pairLine(n)
       + instrBlock(n, mine)
       + act + '</div></div>';
@@ -1077,6 +1252,20 @@
         return '<option value="' + esc(v.email) + '">' + esc(v.name) + '</option>';
       }).join('') + '</datalist>';
 
+      // Putting something in the right place after the fact. The guess
+      // from the words is often right and sometimes is not, and a tag
+      // can be mistyped past recognising.
+      function catRow(n) {
+        return '<div class="catrow"><span class="lbl">Kind</span>'
+          + CATS.map(function(c){
+              var here = (catBy[n.category] ? catBy[n.category].key : 'other') === c.key;
+              return '<button data-action="setcat" data-id="' + n.id + '"'
+                + ' data-cat="' + c.key + '"' + (here ? ' class="on"' : '')
+                + '>' + c.label + '</button>';
+            }).join('')
+          + '</div>';
+      }
+
       function assignCard(n) {
         // A leg whose other half is already covered: someone is relying
         // on this being filled.
@@ -1094,6 +1283,7 @@
           +   '<input type="text" id="an-' + n.id + '" placeholder="Name" autocapitalize="words" />'
           +   '<input type="email" id="ae-' + n.id + '" placeholder="Email" list="roster" autocapitalize="none" inputmode="email" />'
           + '</div>'
+          + catRow(n)
           + '<div class="field-err" id="aerr-' + n.id + '"></div>'
           + '<div class="postbtns">'
           +   '<button class="btn primary small" data-action="assign" data-id="' + n.id + '">Sign them up</button>'
@@ -1112,6 +1302,7 @@
               ? '<details class="instr"><summary>Details</summary>'
                 + '<p class="text">' + esc(String(n.instructions).trim()) + '</p></details>'
               : '')
+          + catRow(n)
           + '<button class="btn ghost" data-action="unassign" data-id="' + n.id + '">They cancelled \u2014 free this up</button>'
           + '<div class="postbtns" style="margin-top:8px">'
           +   '<button class="danger" data-action="remove" data-id="' + n.id + '">Remove this need</button>'
@@ -1141,11 +1332,17 @@
             + (lvl === level ? ' class="on"' : '') + '>' + label + '</button>';
         }
         var reading = lvl === 'approved' || lvl === 'close';
+        var knows = p.knows_address === true;
         return '<div class="tierrow">'
           + '<div class="who"><strong>' + esc(p.name) + '</strong>'
           +   '<div class="em">' + esc(p.email)
-          +   (p.phone ? ' \u00b7 ' + esc(p.phone) : '') + '</div></div>'
+          +   (p.phone ? ' \u00b7 ' + esc(p.phone) : '')
+          +   (knows ? ' \u00b7 has her address' : '') + '</div></div>'
           + '<div class="tierbtns">'
+          +   '<button data-action="setaddr" data-email="' + esc(p.email) + '"'
+          +     ' data-name="' + esc(p.name) + '"'
+          +     ' data-knows="' + (knows ? '0' : '1') + '"'
+          +     (knows ? ' class="on"' : '') + '>Address</button>'
           +   b('none', 'No') + b('approved', 'Updates') + b('close', 'Close')
           +   (reading
                 ? '<button data-action="resend" data-email="' + esc(p.email) + '"'
@@ -1225,8 +1422,52 @@
         : '<div class="askbar"><span>Something needed that is not an appointment?</span>'
           + '<button data-action="toggreq">Ask for something</button></div>';
 
+      // What kind of message each failure was, in words rather than in
+      // the internal name.
+      var FAIL_WORDS = {
+        'invite': 'calendar invitation',
+        'claimed': 'alert that someone signed up',
+        'released': 'alert that a slot was freed',
+        'updated': 'notice that something changed',
+        'cancelled': 'notice that it was cancelled',
+        'journal-link': 'journal link'
+      };
+
+      function failRow(f) {
+        var what = FAIL_WORDS[f.kind] || f.kind;
+        return '<div class="failrow">'
+          + '<h4>' + esc(what) + (f.title ? ' \u2014 ' + esc(f.title) : '') + '</h4>'
+          + '<p class="fmeta">'
+          +   'To ' + esc(f.recipient || 'unknown')
+          +   (f.date ? ' \u00b7 ' + fmtL(f.date) : '')
+          +   ' \u00b7 ' + f.attempts + (f.attempts === 1 ? ' attempt' : ' attempts')
+          +   ' \u00b7 last tried ' + agoWords(f.last_tried)
+          +   (f.retried ? ' \u00b7 already retried' : '')
+          +   (f.detail ? '<span class="why">' + esc(f.detail) + '</span>' : '')
+          + '</p>'
+          + '<div class="postbtns">'
+          +   '<button class="btn primary small" data-action="retry"'
+          +     ' data-kind="' + esc(f.kind) + '"'
+          +     ' data-to="' + esc(f.recipient || '') + '"'
+          +     ' data-need="' + esc(f.need_id || '') + '">Send it again</button>'
+          +   '<button data-action="dropfail"'
+          +     ' data-kind="' + esc(f.kind) + '"'
+          +     ' data-to="' + esc(f.recipient || '') + '"'
+          +     ' data-need="' + esc(f.need_id || '') + '">Dealt with</button>'
+          + '</div></div>';
+      }
+
+      var failBlock = fails.length
+        ? '<div class="section-title">Did not go out</div>'
+          + '<div class="section-sub">These were meant to be emailed and were '
+          + 'not. Usually the mail service was briefly down. Sending again is '
+          + 'safe \u2014 nothing is duplicated that already arrived.</div>'
+          + fails.map(failRow).join('')
+        : '';
+
       content.innerHTML = banner
         + (showHelp ? helpPanel() : '')
+        + failBlock
         + reqForm
         + askBar
         + pastBar
@@ -1321,39 +1562,55 @@
     // An untimed request has no date, and comparing null against a date
     // string is false — which quietly hid every one of them behind a
     // horizon they were never subject to.
-    var openSoon = showAll ? open : open.filter(function(n){
-      if (n.anytime) return true;
-      return n.date && n.date <= cutoffStr;
-    });
-
-    // A half-covered appointment is the most urgent thing on the page:
-    // somebody is already relying on one leg. Those sort first, and the
-    // card is marked.
-    openSoon = openSoon.slice().sort(function(a, b){
-      // A half-covered trip first: somebody is already relying on it.
+    // Sorted before anything is sliced off, or "the first six" would
+    // mean whatever order the database happened to return.
+    open = open.slice().sort(function(a, b){
       var ao = (a.partner_id && a.partner_status === 'FILLED') ? 0 : 1;
       var bo = (b.partner_id && b.partner_status === 'FILLED') ? 0 : 1;
       if (ao !== bo) return ao - bo;
-
-      // Then anything without a fixed time, which a friend can fit
-      // around whatever else they are doing.
       var aa = a.anytime ? 0 : 1, ba = b.anytime ? 0 : 1;
       if (aa !== ba) return aa - ba;
-
-      // Undated requests sit above dated ones within that group.
       if (!a.date && !b.date) return 0;
       if (!a.date) return -1;
       if (!b.date) return 1;
       if (a.date !== b.date) return a.date < b.date ? -1 : 1;
       return 0;
     });
+
+    var withinHorizon = open.filter(function(n){
+      if (n.anytime) return true;
+      return n.date && n.date <= cutoffStr;
+    });
+
+    // A two-week window is right when there is plenty and wrong when
+    // there is not: a friend who opens the page and sees one thing
+    // concludes there is nothing to do and closes it. So the window is a
+    // floor, not a ceiling — it stretches until there is something worth
+    // looking at, or until there is nothing left to show.
+    var MIN_SHOWN = 6;
+    var openSoon;
+    if (showAll) {
+      openSoon = open;
+    } else if (withinHorizon.length >= MIN_SHOWN) {
+      openSoon = withinHorizon;
+    } else {
+      openSoon = open.slice(0, Math.max(MIN_SHOWN, withinHorizon.length));
+    }
+
+    // A half-covered appointment is the most urgent thing on the page:
+    // somebody is already relying on one leg. Those sort first, and the
+    // card is marked.
+
     var hiddenCount = open.length - openSoon.length;
 
     var moreLine = '';
     if (hiddenCount > 0 && !showAll) {
       moreLine = '<div class="moreline"><button data-action="showall">'
         + 'Show ' + hiddenCount + ' more, further ahead</button></div>';
-    } else if (showAll && open.length > 0) {
+    } else if (showAll && withinHorizon.length < open.length) {
+      // Only offer to fold it back up if doing so would actually hide
+      // something. With a handful of needs the two views are the same,
+      // and a button that changes nothing is worse than no button.
       moreLine = '<div class="moreline"><button data-action="showall">'
         + 'Show just the next two weeks</button></div>';
     }
@@ -1797,6 +2054,69 @@
       return;
     }
 
+    if (a === 'retry' || a === 'dropfail') {
+      var fKind = el.getAttribute('data-kind');
+      var fTo = el.getAttribute('data-to') || null;
+      var fNeed = el.getAttribute('data-need') || null;
+
+      if (a === 'retry') {
+        el.disabled = true;
+        el.textContent = 'Sending\u2026';
+
+        // Replay the same message. Which fields matter depends on what
+        // it was: a need-shaped message needs the need, a journal link
+        // needs the address.
+        var body = (fKind === 'journal-link')
+          ? { action: 'access-granted', email: fTo, again: true }
+          : { id: fNeed, action: fKind === 'invite' ? 'claimed' : fKind };
+
+        var sent = false;
+        try {
+          var res = await fetch('/api/notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+          sent = res.ok;
+        } catch (err) { sent = false; }
+
+        el.disabled = false;
+        el.textContent = 'Send it again';
+
+        if (!sent) {
+          notice = 'Still not going through. The mail service may still be down.';
+          render();
+          return;
+        }
+      }
+
+      // Either it went, or you have dealt with it another way. Both mean
+      // it should stop asking.
+      try {
+        await db.rpc('mark_retried', {
+          p_pass: pass, p_kind: fKind, p_recipient: fTo, p_need_id: fNeed
+        });
+      } catch (err) {}
+
+      notice = a === 'retry' ? 'Sent.' : '';
+      await loadCoord();
+      return;
+    }
+
+    if (a === 'setcat') {
+      var newCat = el.getAttribute('data-cat');
+      el.disabled = true;
+      var cr = await db.rpc('set_category', {
+        p_pass: pass, p_id: id, p_category: newCat
+      });
+      el.disabled = false;
+      if (cr.error || !cr.data || cr.data.ok !== true) {
+        notice = 'Could not change that. Please try again.'; render(); return;
+      }
+      await loadCoord();
+      return;
+    }
+
     if (a === 'togglepast') {
       showPast = !showPast;
       await loadCoord();
@@ -1867,6 +2187,43 @@
       var dr = await db.rpc('delete_post', { p_pass: pass, p_id: id });
       if (dr.error || !dr.data || dr.data.ok !== true) {
         notice = 'Could not delete that. Please try again.'; render(); return;
+      }
+      await loadCoord();
+      return;
+    }
+
+    if (a === 'setaddr') {
+      var aEmail = el.getAttribute('data-email');
+      var aName = el.getAttribute('data-name') || '';
+      var wantKnows = el.getAttribute('data-knows') === '1';
+
+      el.disabled = true;
+      var ar2 = await db.rpc('set_address_access', {
+        p_pass: pass, p_email: aEmail, p_knows: wantKnows
+      });
+      el.disabled = false;
+
+      if (ar2.error || !ar2.data || ar2.data.ok !== true) {
+        notice = 'Could not change that. Please try again.'; render(); return;
+      }
+
+      // Newly told: put it in their inbox rather than leaving them to
+      // notice it on a page.
+      if (ar2.data.newly_told && ar2.data.address) {
+        try {
+          await fetch('/api/notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'address-shared', email: aEmail,
+              name: aName, address: ar2.data.address
+            })
+          });
+          notice = aName + ' has been emailed her address.';
+        } catch (err) {
+          notice = 'Turned on, but the email did not go. It is in '
+            + 'Did not go out.';
+        }
       }
       await loadCoord();
       return;
