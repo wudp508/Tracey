@@ -109,11 +109,115 @@ function parseDateTime(prop, tz) {
 }
 
 // A #tag anywhere in the title or description sets the category.
-function extractCategory(title, description) {
-  const hay = `${title || ''} ${description || ''}`.toLowerCase();
-  for (const cat of CATEGORIES) {
-    if (hay.includes('#' + cat)) return cat;
+
+// ---------- reading a tag that may be wrong ----------
+//
+// A tag only helps if it survives being typed on a phone by somebody
+// tired. An exact match is a poor standard: "#ryde" or "#wlaks" reads as
+// no tag at all, and then sits visibly in the title telling nobody
+// anything.
+//
+// So a tag is matched three ways, in order of confidence:
+//   an exact name       #rides
+//   a prefix            #r  #ri  #wal
+//   something close     #ryde  #wlaks  #izy  #othr
+//
+// Round-trip words are checked before categories, because "#ro" means a
+// round trip and "#r" means a ride, and reading them the other way round
+// would silently halve an appointment.
+
+// Short aliases are matched exactly and never approximately. "#ride2"
+// is one edit from "#rides", so forgiving a typo there would split every
+// plain ride into two journeys — which is worse than ignoring a tag.
+const ROUNDTRIP_EXACT = [
+  'ro', 'rt', 'round', 'both', 'ride2', '2way', 'rt2', 'twoway'
+];
+
+// Long enough that a near miss is safely a typo rather than a different
+// word.
+const ROUNDTRIP_FUZZY = ['roundtrip', 'bothways', 'eachway', 'returntoo'];
+
+const ROUNDTRIP_WORDS = ROUNDTRIP_EXACT.concat(ROUNDTRIP_FUZZY);
+
+// How many single-character edits separate two words. Used only to
+// forgive a typo, never to guess between two plausible readings.
+function editDistance(a, b) {
+  if (a === b) return 0;
+  if (Math.abs(a.length - b.length) > 2) return 99;
+  const prev = new Array(b.length + 1);
+  for (let j = 0; j <= b.length; j++) prev[j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    let last = prev[0];
+    prev[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = prev[j];
+      prev[j] = Math.min(
+        prev[j] + 1,
+        prev[j - 1] + 1,
+        last + (a[i - 1] === b[j - 1] ? 0 : 1)
+      );
+      last = tmp;
+    }
   }
+  return prev[b.length];
+}
+
+function closeEnough(word, target) {
+  // Two edits from four letters up. That is what it takes to forgive a
+  // transposition — "wlaks" is two edits from "walks", not one — and to
+  // catch "ryde" for "rides". Below four letters, nothing is forgiven:
+  // short words are too easily each other.
+  if (target.length < 4) return word === target;
+  return editDistance(word, target) <= 2;
+}
+
+// Every #word in the text, lowercased.
+function hashWords(text) {
+  const out = [];
+  const re = /#([a-z0-9]{1,16})/gi;
+  let m;
+  while ((m = re.exec(String(text || ''))) !== null) {
+    out.push(m[1].toLowerCase());
+  }
+  return out;
+}
+
+function looksLikeRoundTrip(text) {
+  return hashWords(text).some(w =>
+    ROUNDTRIP_EXACT.includes(w)
+    || ROUNDTRIP_FUZZY.some(t => closeEnough(w, t)));
+}
+
+// Words that are no longer categories but that somebody may still type.
+const LEGACY_TAGS = { errands: 'other', errand: 'other', err: 'other',
+                      dog: 'izzy', walk: 'walks', ride: 'rides',
+                      medical: 'rides', rehab: 'rides' };
+
+// Returns a category, or null if no word here was meant as one.
+function tagCategory(text) {
+  for (const w of hashWords(text)) {
+    if (ROUNDTRIP_WORDS.includes(w)) continue;     // handled separately
+    if (LEGACY_TAGS[w]) return LEGACY_TAGS[w];
+
+    const exact = CATEGORIES.find(c => c === w);
+    if (exact) return exact;
+
+    // A prefix. Two or more letters is unambiguous here; a single letter
+    // is allowed because r, w, i and o each start only one category.
+    const byPrefix = CATEGORIES.filter(c => c.startsWith(w));
+    if (byPrefix.length === 1) return byPrefix[0];
+
+    const byDistance = CATEGORIES.filter(c => closeEnough(w, c));
+    if (byDistance.length === 1) return byDistance[0];
+  }
+  return null;
+}
+
+function extractCategory(title, description) {
+  const hay = `${title || ''} ${description || ''}`;
+
+  const tagged = tagCategory(hay);
+  if (tagged) return tagged;
   // Fall back to plain-language hints in the title and description.
   // Order matters: Izzy beats walks, so "walk Izzy" is dog help.
   const t = `${title || ''} ${description || ''}`.toLowerCase();
@@ -132,13 +236,21 @@ function extractCategory(title, description) {
   return 'other';
 }
 
+// Removes any #word that was read as a tag — including a misspelt one,
+// which would otherwise stay in the title looking like a mistake.
+// Anything not recognised is left alone: it may be part of what she
+// meant to say.
 function stripTags(text) {
-  let out = String(text || '');
-  CATEGORIES.forEach(c => {
-    out = out.replace(new RegExp('#' + c, 'gi'), '');
-  });
-  out = out.replace(ROUNDTRIP_RE, '');
-  return out.replace(/\s{2,}/g, ' ').trim();
+  return String(text || '').replace(/#([a-z0-9]{1,16})/gi, function (whole, w) {
+    const word = w.toLowerCase();
+    if (ROUNDTRIP_EXACT.includes(word)) return '';
+    if (ROUNDTRIP_FUZZY.some(t => closeEnough(word, t))) return '';
+    if (LEGACY_TAGS[word]) return '';
+    if (CATEGORIES.includes(word)) return '';
+    if (CATEGORIES.filter(c => c.startsWith(word)).length === 1) return '';
+    if (CATEGORIES.filter(c => closeEnough(word, c)).length === 1) return '';
+    return whole;
+  }).replace(/\s{2,}/g, ' ').trim();
 }
 
 
@@ -743,7 +855,7 @@ export default async (request) => {
     if (m) effectiveUid = uid + '::' + m[1] + m[2] + m[3];
   }
 
-  const isRoundTrip = ROUNDTRIP_RE.test(summary) || ROUNDTRIP_RE.test(description);
+  const isRoundTrip = looksLikeRoundTrip(summary + ' ' + description);
 
   // ---------- an appointment needing a lift each way ----------
   // Handled before the series branch, because a repeating appointment
