@@ -299,6 +299,22 @@
   .sec .quiet{flex:0 0 auto;font-size:.72rem;font-weight:600;
     color:var(--text-muted);background:#EFEDE6;border-radius:100px;padding:2px 9px}
   .sec .body{padding:0 0 12px}
+  .minebtns{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
+  .minebtns button{font-family:inherit;font-size:.75rem;font-weight:600;
+    padding:6px 12px;border-radius:100px;border:1px solid var(--border);
+    background:var(--card-bg);color:var(--text-muted);cursor:pointer;
+    -webkit-tap-highlight-color:transparent}
+  .minebtns button:active{background:#F4F1EA}
+  .callout{display:inline-block;background:var(--sage);color:#fff;
+    text-decoration:none;font-size:.85rem;font-weight:600;border-radius:8px;
+    padding:9px 16px;margin-right:8px}
+  .setrow{margin:0 0 13px}
+  .setrow label{display:block;font-size:.78rem;font-weight:600;
+    color:var(--text-muted);margin:0 0 4px}
+  .setrow .hint{font-weight:400;color:var(--text-muted)}
+  .setrow input{width:100%;font-family:inherit;font-size:16px;padding:10px 12px;
+    border:1px solid var(--border);border-radius:8px;background:#fff;
+    color:var(--text)}
   .searchbar{position:relative;margin:0 0 16px}
   .searchbar input{width:100%;font-family:inherit;font-size:16px;
     padding:10px 34px 10px 13px;border:1px solid var(--border);border-radius:9px;
@@ -1271,7 +1287,17 @@
     if (filled) {
       act = '<p class="vol">Covered by <strong>' + esc(mine ? 'you' : (n.volunteer_name || 'a friend')) + '</strong>'
           + (mine ? '<span class="yours">yours</span>' : '') + '</p>'
-          + (mine ? '<button class="btn ghost" data-action="release" data-id="'+n.id+'">Can\'t make it anymore? Free up this slot</button>' : '');
+          + (mine
+              ? '<div class="minebtns">'
+                + '<button data-action="release" data-id="' + n.id + '">'
+                +   'Can\'t make it? Free it up</button>'
+                // Declined by mistake, deleted, lost in junk — all the
+                // same dead end until now.
+                + (n.anytime ? ''
+                    : '<button data-action="resend" data-id="' + n.id + '">'
+                      + 'Send the invitation again</button>')
+                + '</div>'
+              : '');
     } else {
       var b = busy === n.id;
       act = '<button class="btn primary" data-action="claim" data-id="'+n.id+'"'+(b?' disabled':'')+'>'
@@ -1707,6 +1733,38 @@
                 : '<div class="empty">No posts yet.</div>',
               fPosts.length ? fPosts.length + ' posts' : 'none')
 
+        + sec('settings', 'Settings', 0,
+              'A few things worth changing without opening the database.',
+              (function(){
+                var cfg = coordData.settings || {};
+                function field(key, label, hint, ph) {
+                  return '<div class="setrow">'
+                    + '<label>' + label
+                    +   (hint ? ' <span class="hint">' + hint + '</span>' : '')
+                    + '</label>'
+                    + '<input type="text" id="set-' + key + '"'
+                    +   ' value="' + esc(cfg[key] || '') + '"'
+                    +   ' placeholder="' + esc(ph) + '"'
+                    +   ' autocapitalize="none" autocorrect="off" /></div>';
+                }
+                return field('urgent_phone', 'Number for late changes',
+                             '\u2014 a friend who drops something within a day and a half is offered this',
+                             '+1 503 555 0147')
+                  + field('urgent_name', 'Whose name is on that button', '',
+                          'Wud')
+                  + field('home_address', 'Her address',
+                          '\u2014 what the map links navigate to; never shown as text',
+                          '1400 Elm St, Mosier, OR 97040')
+                  + field('home_label', 'Shown instead of it',
+                          '\u2014 what a friend sees on a card',
+                          'Home, Mosier')
+                  + '<div class="field-err" id="set-err"></div>'
+                  + '<div class="postbtns">'
+                  +   '<button class="btn primary small" data-action="savesettings">Save</button>'
+                  + '</div>';
+              })(),
+              'edit')
+
         + sec('friends', 'Registered friends', 0,
               vols.length + ' ' + (vols.length === 1 ? 'person has' : 'people have')
                 + ' added themselves. Approved friends can read her updates; '
@@ -1952,8 +2010,14 @@
   //   resume            older Android webviews
   document.addEventListener('visibilitychange', refreshIfStale);
   window.addEventListener('pageshow', function (e) {
-    // persisted means it came back from the cache rather than loading.
-    if (e.persisted) { lastLoaded = 0; refreshIfStale(); }
+    // persisted means it came back from the cache rather than loading —
+    // which is exactly what happens on the way back from the journal, so
+    // the unread count has to be re-read whatever the guard says.
+    if (e.persisted) {
+      lastLoaded = 0;
+      access = null;
+      refreshIfStale();
+    }
   });
   window.addEventListener('focus', refreshIfStale);
   document.addEventListener('resume', refreshIfStale);
@@ -2184,6 +2248,13 @@
       notice = '';
       notify(id, 'released');
 
+      // Freeing it up is enough with a week's notice and not enough
+      // tomorrow morning: nobody may look at the page before it comes
+      // round. So at short notice, offer the way to say so.
+      var soon = thisNeed && thisNeed.date && !thisNeed.anytime
+        && (new Date(thisNeed.date + 'T23:59:59') - Date.now()) < 36 * 3600000;
+      if (soon) await urgentPrompt(thisNeed);
+
       // Someone who cannot make the appointment usually cannot do either
       // journey. Asking mirrors the question on the way in.
       if (alsoHavePartner) {
@@ -2273,6 +2344,25 @@
     if (a === 'showmine') {
       showMine = !showMine;
       render();
+      return;
+    }
+
+    if (a === 'resend') {
+      el.disabled = true;
+      var was = el.textContent;
+      el.textContent = 'Sending\u2026';
+      var ok = false;
+      try {
+        var rr2 = await fetch('/api/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: id, action: 'resend-invite' })
+        });
+        ok = rr2.ok;
+      } catch (err) { ok = false; }
+      el.disabled = false;
+      el.textContent = ok ? 'Sent \u2014 check your email' : 'Could not send';
+      setTimeout(function(){ el.textContent = was; }, 4000);
       return;
     }
 
@@ -2426,6 +2516,32 @@
       if (cr.error || !cr.data || cr.data.ok !== true) {
         notice = 'Could not change that. Please try again.'; render(); return;
       }
+      await loadCoord();
+      return;
+    }
+
+    if (a === 'savesettings') {
+      var keys = ['urgent_phone','urgent_name','home_address','home_label'];
+      var slot = document.getElementById('set-err');
+      slot.textContent = '';
+      el.disabled = true;
+      el.textContent = 'Saving\u2026';
+
+      var bad = null;
+      for (var i = 0; i < keys.length; i++) {
+        var box = document.getElementById('set-' + keys[i]);
+        if (!box) continue;
+        var r2 = await db.rpc('set_setting', {
+          p_pass: pass, p_key: keys[i], p_value: (box.value || '').trim()
+        });
+        if (r2.error || !r2.data || r2.data.ok !== true) { bad = keys[i]; break; }
+      }
+
+      el.disabled = false;
+      el.textContent = 'Save';
+      if (bad) { slot.textContent = 'Could not save. Please try again.'; return; }
+
+      notice = 'Saved.';
       await loadCoord();
       return;
     }
@@ -2677,6 +2793,52 @@
   // bother someone whose wife is recovering. A button that invites it
   // lowers that bar. So the wording asks what went wrong, not for
   // feedback, which would invite opinions nobody has time to answer.
+  // Shown only in the moment it matters: somebody has just freed up
+  // something happening within a day and a half. A number on every card
+  // would be a number on a page that gets forwarded; this is the same
+  // information at the one point it is needed.
+  async function urgentPrompt(n) {
+    var contact = null;
+    try {
+      var cr = await db.rpc('urgent_contact', { p_email: me.email });
+      if (!cr.error && cr.data && cr.data.phone) contact = cr.data;
+    } catch (e) {}
+
+    var when = n.date ? fmtL(n.date) : 'soon';
+    var body = '<p>Thank you for saying so rather than leaving it. '
+      + esc(when) + ' is close enough that nobody may look at the page '
+      + 'before it comes round.</p>'
+      + '<p><strong>If you can, ask another friend</strong> whether they can '
+      + 'step in for you. That is the quickest fix by far.</p>';
+
+    if (contact) {
+      var tel = String(contact.phone).replace(/[^0-9+]/g, '');
+      body += '<p>If you cannot find anyone, tell ' + esc(contact.name)
+        + ' so a quick adjustment can be made.</p>'
+        + '<p style="margin-top:14px">'
+        + '<a class="callout" href="sms:' + tel + '">Text ' + esc(contact.name)
+        + '</a> <a class="callout" href="tel:' + tel + '">Call</a></p>';
+    }
+
+    return new Promise(function (resolve) {
+      var bg = document.createElement('div');
+      bg.className = 'ask-bg';
+      bg.innerHTML = '<div class="ask"><h3>That is soon</h3>'
+        + '<div class="howto">' + body + '</div>'
+        + '<div class="acts" style="margin-top:16px">'
+        +   '<button class="yes" data-close="1">Got it</button>'
+        + '</div></div>';
+      function done() {
+        if (bg.parentNode) bg.parentNode.removeChild(bg);
+        resolve();
+      }
+      bg.addEventListener('click', function (e) {
+        if (e.target.closest('[data-close]') || e.target === bg) done();
+      });
+      document.body.appendChild(bg);
+    });
+  }
+
   function reportProblem() {
     return new Promise(function (resolve) {
       var bg = document.createElement('div');
