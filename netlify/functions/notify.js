@@ -20,6 +20,19 @@ function fmtDate(iso) {
   } catch (e) { return iso; }
 }
 
+// Who a reply reaches. Deliberately separate from who the email comes
+// from: these go out under Tracey's name because the appointments are
+// hers and she is the organizer on every invitation — but she has asked
+// not to field the day-to-day, so replies land with a coordinator.
+//
+// Falls back to the sender when unset, which is how it behaved before.
+function replyAddress() {
+  const r = (process.env.REPLY_TO || '').trim();
+  if (r) return r.split(',')[0].trim();
+  const t = (process.env.NOTIFY_TO || '').split(',')[0].trim();
+  return t || process.env.NOTIFY_FROM;
+}
+
 function esc(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -175,7 +188,7 @@ async function sendInvite(env, need, why) {
     await transport.sendMail({
       from: { name: 'For Tracey', address: env.NOTIFY_FROM },
       to: need.volunteer ? `"${need.volunteer}" <${need.email}>` : need.email,
-      replyTo: env.NOTIFY_FROM,
+      replyTo: replyAddress(),
       subject: (why === 'updated' ? 'Changed: ' : '') + `${need.title} — ${when}`,
       text: text,
       html: html,
@@ -385,7 +398,7 @@ export default async (request) => {
         body: JSON.stringify({
           sender: { email: NOTIFY_FROM, name: 'For Tracey' },
           to: [{ email: to, name: who || undefined }],
-          replyTo: { email: NOTIFY_FROM },
+          replyTo: { email: replyAddress() },
           subject: "Tracey's address, for when you are driving",
           htmlContent: html,
           textContent: `${first}, here is Tracey's address.\n\n${addr}\n\n`
@@ -519,7 +532,7 @@ export default async (request) => {
         body: JSON.stringify({
           sender: { email: NOTIFY_FROM, name: 'For Tracey' },
           to: [{ email: addr, name: who || undefined }],
-          replyTo: { email: NOTIFY_FROM },
+          replyTo: { email: replyAddress() },
           subject: again
             ? "Tracey's updates \u2014 the link again"
             : "You can read Tracey's updates",
@@ -554,7 +567,8 @@ export default async (request) => {
   }
 
   if (!id || (action !== 'claimed' && action !== 'released'
-              && action !== 'cancelled' && action !== 'updated')) {
+              && action !== 'cancelled' && action !== 'updated'
+              && action !== 'resend-invite')) {
     return new Response('Bad request', { status: 400 });
   }
 
@@ -620,7 +634,7 @@ export default async (request) => {
           body: JSON.stringify({
             sender: { email: NOTIFY_FROM, name: 'For Tracey' },
             to: [{ email: need.email, name: need.volunteer || undefined }],
-            replyTo: { email: NOTIFY_FROM },
+            replyTo: { email: replyAddress() },
             subject: `Cancelled: ${need.title} \u2014 ${when}`,
             htmlContent: vHtml,
             textContent: `This is no longer needed.\n\n${need.title}\n${when}\n\n`
@@ -710,38 +724,43 @@ export default async (request) => {
   const recipients = NOTIFY_TO.split(',')
     .map(e => e.trim()).filter(Boolean).map(e => ({ email: e }));
 
+  // A friend asking for their own invitation again is not news for a
+  // coordinator, and an alert every time somebody mislays an email is
+  // how alerts stop being read. The invitation itself is sent below.
+  const tellCoordinators = action !== 'resend-invite';
+
   try {
-    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'accept': 'application/json',
-        'api-key': BREVO_API_KEY
-      },
-      body: JSON.stringify({
-        sender: { email: NOTIFY_FROM, name: 'For Tracey' },
-        to: recipients,
-        subject: subject,
-        htmlContent: html,
-        textContent: text
-      })
-    });
-    const out = await res.text();
-    if (!res.ok) {
-      const why = await res.text();
-      console.error('Coordinator email failed:', res.status, why);
-      await record(action, false, NOTIFY_TO, id,
-                   res.status + ': ' + why.slice(0, 200),
-                   { id: id, action: action });
-    } else {
+    // Skipped entirely on a resend: there is nothing to tell anybody.
+    if (tellCoordinators) {
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'accept': 'application/json',
+          'api-key': BREVO_API_KEY
+        },
+        body: JSON.stringify({
+          sender: { email: NOTIFY_FROM, name: 'For Tracey' },
+          to: recipients,
+          subject: subject,
+          htmlContent: html,
+          textContent: text
+        })
+      });
+      const out = await res.text();
+
+      if (!res.ok) {
+        console.error('Coordinator email failed:', res.status, out);
+        await record(action, false, NOTIFY_TO, id,
+                     res.status + ': ' + out.slice(0, 200),
+                     { id: id, action: action });
+        return new Response(JSON.stringify({
+          error: 'brevo rejected', status: res.status, detail: out.slice(0, 300)
+        }), { status: 502, headers: { 'Content-Type': 'application/json' } });
+      }
       await record(action, true, NOTIFY_TO, id, null, null);
     }
-    if (!res.ok) {
-      console.error('Brevo rejected the send:', res.status, out);
-      return new Response(JSON.stringify({ error: 'brevo rejected', status: res.status, detail: out.slice(0, 300) }), {
-        status: 502, headers: { 'Content-Type': 'application/json' }
-      });
-    }
+
     console.log('Notified', action, need.title);
 
     // On a claim, forward the genuine Outlook invitation to the volunteer.
@@ -749,7 +768,7 @@ export default async (request) => {
     // signed up needs the new one. Without this they keep whatever was
     // forwarded when they claimed, and turn up at the old time.
     let inviteResult = 'not applicable';
-    if (action === 'claimed' || action === 'updated') {
+    if (action === 'claimed' || action === 'updated' || action === 'resend-invite') {
       try {
         const full = await fetch(`${SUPABASE_URL}/rest/v1/rpc/claim_invite`, {
           method: 'POST',
