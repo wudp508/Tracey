@@ -1351,12 +1351,15 @@
       // still waiting on somebody. Sections with nothing outstanding
       // start closed, so the panel opens on what actually needs doing.
       function sec(key, title, todo, sub, body, emptyWord) {
-        // While searching, everything with a match is open — otherwise
-        // the result is hidden behind the very section you would have to
-        // guess at.
-        var isOpen = q
-          ? true
-          : (shut[key] === undefined ? (todo > 0) : !shut[key]);
+        // Everything starts shut. The count on each header already says
+        // what is waiting, so opening a section for somebody is doing
+        // work they did not ask for — and a panel that opens as a wall
+        // of cards is the thing the counts were meant to replace.
+        //
+        // While searching, anything with a match is open: otherwise the
+        // result hides behind the very section you would have to guess
+        // at.
+        var isOpen = q ? true : (shut[key] === false);
         return '<details class="sec"' + (isOpen ? ' open' : '')
           + ' data-sec="' + key + '">'
           + '<summary><h2>' + esc(title) + '</h2>'
@@ -1631,12 +1634,15 @@
       // still waiting on somebody. Sections with nothing outstanding
       // start closed, so the panel opens on what actually needs doing.
       function sec(key, title, todo, sub, body, emptyWord) {
-        // While searching, everything with a match is open — otherwise
-        // the result is hidden behind the very section you would have to
-        // guess at.
-        var isOpen = q
-          ? true
-          : (shut[key] === undefined ? (todo > 0) : !shut[key]);
+        // Everything starts shut. The count on each header already says
+        // what is waiting, so opening a section for somebody is doing
+        // work they did not ask for — and a panel that opens as a wall
+        // of cards is the thing the counts were meant to replace.
+        //
+        // While searching, anything with a match is open: otherwise the
+        // result hides behind the very section you would have to guess
+        // at.
+        var isOpen = q ? true : (shut[key] === false);
         return '<details class="sec"' + (isOpen ? ' open' : '')
           + ' data-sec="' + key + '">'
           + '<summary><h2>' + esc(title) + '</h2>'
@@ -1783,12 +1789,15 @@
       // still waiting on somebody. Sections with nothing outstanding
       // start closed, so the panel opens on what actually needs doing.
       function sec(key, title, todo, sub, body, emptyWord) {
-        // While searching, everything with a match is open — otherwise
-        // the result is hidden behind the very section you would have to
-        // guess at.
-        var isOpen = q
-          ? true
-          : (shut[key] === undefined ? (todo > 0) : !shut[key]);
+        // Everything starts shut. The count on each header already says
+        // what is waiting, so opening a section for somebody is doing
+        // work they did not ask for — and a panel that opens as a wall
+        // of cards is the thing the counts were meant to replace.
+        //
+        // While searching, anything with a match is open: otherwise the
+        // result hides behind the very section you would have to guess
+        // at.
+        var isOpen = q ? true : (shut[key] === false);
         return '<details class="sec"' + (isOpen ? ' open' : '')
           + ' data-sec="' + key + '">'
           + '<summary><h2>' + esc(title) + '</h2>'
@@ -2078,6 +2087,8 @@
     var d = e.target;
     if (!d || !d.classList || !d.classList.contains('sec')) return;
     var key = d.getAttribute('data-sec');
+    // false means "deliberately opened", which survives the next
+    // refresh; undefined means never touched, which stays shut.
     if (key) shut[key] = !d.open;
   }, true);
 
