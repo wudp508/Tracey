@@ -421,12 +421,15 @@
 
     var r = await db.rpc('list_posts', { p_email: me.email });
 
-    // Opening the page is reading it, as far as the badge is concerned —
-    // but give it a moment, so a stray tap and a bounce straight back
-    // does not silently clear the count.
-    setTimeout(function () {
-      try { db.rpc('mark_seen', { p_email: me.email, p_what: 'journal' }); } catch (e) {}
-    }, 5000);
+    // Opening the page is reading it, as far as the badge is concerned.
+    //
+    // This used to wait five seconds first, to protect against a stray
+    // tap. But it is fire-and-forget, so tapping Back cancelled the
+    // request before it landed and the count never cleared — which is a
+    // worse failure than clearing on a tap somebody did make.
+    try {
+      await db.rpc('mark_seen', { p_email: me.email, p_what: 'journal' });
+    } catch (e) {}
     if (r.error) {
       content.className = 'status';
       content.textContent = 'Could not load her updates just now. Please try again shortly.';
