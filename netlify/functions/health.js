@@ -95,6 +95,45 @@ export default async () => {
     }
   }
 
+  // ---------- are the scheduled jobs still running? ----------
+  //
+  // The awkward one. If this check stops running, nothing reports that
+  // it stopped. The evening reminder job also calls this endpoint, so
+  // the two schedules watch each other and both would have to fail.
+  if (SUPABASE_URL && SUPABASE_KEY && INGEST_TOKEN) {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/cron_status`, {
+        method: 'POST',
+        signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined,
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`
+        },
+        body: JSON.stringify({ p_token: INGEST_TOKEN })
+      });
+      if (res.ok) {
+        const c = JSON.parse(await res.text());
+
+        // Thirty hours: a daily job that has missed one run is worth
+        // knowing about, but a few hours' drift is not.
+        const late = (h, name) => {
+          if (h === null || h === undefined) {
+            record(name + ' schedule', false, 'has never run');
+          } else if (h > 30) {
+            record(name + ' schedule', false,
+                   'last ran ' + Math.round(h) + ' hours ago');
+          } else {
+            record(name + ' schedule', true, '');
+          }
+        };
+
+        late(c.health_hours_ago, 'daily check');
+        late(c.reminders_hours_ago, 'evening reminder');
+      }
+    } catch (e) { /* the database check above already covers being down */ }
+  }
+
   // ---------- anything that was meant to be emailed and was not ----------
   if (SUPABASE_URL && SUPABASE_KEY && INGEST_TOKEN) {
     try {
