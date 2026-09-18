@@ -282,6 +282,30 @@
   /* Open needs is the reason the page exists. It was a heading among
      headings; now it announces itself the way the other two standing
      things on the page do. */
+  /* A coordinator section: a header you can tap shut, carrying a count
+     of whatever in it is still waiting on you. */
+  .sec{border-top:1px solid var(--border);margin-top:4px}
+  .sec:first-of-type{border-top:none}
+  .sec > summary{cursor:pointer;list-style:none;display:flex;align-items:center;
+    gap:9px;padding:14px 2px;-webkit-tap-highlight-color:transparent}
+  .sec > summary::-webkit-details-marker{display:none}
+  .sec > summary h2{font-family:'Fraunces',serif;font-size:1.12rem;font-weight:500;
+    margin:0;flex:1 1 auto;color:var(--text)}
+  .sec > summary .mark{flex:0 0 auto;color:var(--text-muted);font-size:1.05rem;
+    transition:transform .15s}
+  .sec[open] > summary .mark{transform:rotate(90deg)}
+  .sec .todo{flex:0 0 auto;font-size:.72rem;font-weight:700;color:#fff;
+    background:var(--clay);border-radius:100px;padding:2px 9px}
+  .sec .quiet{flex:0 0 auto;font-size:.72rem;font-weight:600;
+    color:var(--text-muted);background:#EFEDE6;border-radius:100px;padding:2px 9px}
+  .sec .body{padding:0 0 12px}
+  .searchbar{position:relative;margin:0 0 16px}
+  .searchbar input{width:100%;font-family:inherit;font-size:16px;
+    padding:10px 34px 10px 13px;border:1px solid var(--border);border-radius:9px;
+    background:var(--card-bg);color:var(--text)}
+  .searchbar button{position:absolute;right:6px;top:50%;transform:translateY(-50%);
+    background:none;border:none;color:var(--text-muted);font-size:1.1rem;
+    cursor:pointer;padding:4px 8px;font-family:inherit}
   .needs-banner{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;
     background:#EFF2EC;border:1px solid #DDE4D6;border-radius:11px;
     padding:12px 15px;margin:26px 0 12px}
@@ -398,6 +422,8 @@
   var showHelp = false;
   var showPast = false;   // coordinator view: include finished needs
   var showReq = false;    // the ask-for-something form
+  var find = '';          // coordinator search
+  var shut = {};          // sections the coordinator has collapsed
   var showAll = false;    // friend view: beyond the next fortnight
   var showMine = false;   // all of their own claims, not just the next two
   var newIds = null;      // ids that were new on arrival, held for the visit
@@ -1295,7 +1321,49 @@
       if (!coordData) {
         sub.textContent = '';
     topStack.innerHTML = '';
-        content.innerHTML = banner + '<div class="gate"><h2>Coordinator access</h2>'
+        // A section that can be shut, carrying a count of whatever in it is
+      // still waiting on somebody. Sections with nothing outstanding
+      // start closed, so the panel opens on what actually needs doing.
+      function sec(key, title, todo, sub, body, emptyWord) {
+        // While searching, everything with a match is open — otherwise
+        // the result is hidden behind the very section you would have to
+        // guess at.
+        var isOpen = q
+          ? true
+          : (shut[key] === undefined ? (todo > 0) : !shut[key]);
+        return '<details class="sec"' + (isOpen ? ' open' : '')
+          + ' data-sec="' + key + '">'
+          + '<summary><h2>' + esc(title) + '</h2>'
+          +   (todo > 0
+                ? '<span class="todo">' + todo + '</span>'
+                : '<span class="quiet">' + esc(emptyWord || 'none') + '</span>')
+          +   '<span class="mark">\u203a</span></summary>'
+          + '<div class="body">'
+          +   (sub ? '<div class="section-sub">' + sub + '</div>' : '')
+          +   body
+          + '</div></details>';
+      }
+
+      // Search across everything in the panel at once. One box rather
+      // than one per section: a coordinator looking for a name does not
+      // know which section it is in, which is the whole reason for
+      // looking.
+      var q = find.trim().toLowerCase();
+      function hit(/* strings */) {
+        if (!q) return true;
+        for (var i = 0; i < arguments.length; i++) {
+          if (String(arguments[i] || '').toLowerCase().indexOf(q) !== -1) return true;
+        }
+        return false;
+      }
+
+      function keepNeed(n) {
+        return hit(n.title, n.location, n.volunteer_name, n.volunteer_email,
+                   n.category, n.date);
+      }
+      function keepPerson(p) { return hit(p.name, p.email, p.phone); }
+
+      content.innerHTML = banner + '<div class="gate"><h2>Coordinator access</h2>'
           + '<p>Enter the passphrase to see volunteer contact details and pending invites.</p>'
           + '<input type="password" id="c-pass" placeholder="Passphrase" />'
           + '<button class="btn primary" data-action="unlock">Unlock</button></div>';
@@ -1533,42 +1601,119 @@
           + fails.map(failRow).join('')
         : '';
 
+      // A section that can be shut, carrying a count of whatever in it is
+      // still waiting on somebody. Sections with nothing outstanding
+      // start closed, so the panel opens on what actually needs doing.
+      function sec(key, title, todo, sub, body, emptyWord) {
+        // While searching, everything with a match is open — otherwise
+        // the result is hidden behind the very section you would have to
+        // guess at.
+        var isOpen = q
+          ? true
+          : (shut[key] === undefined ? (todo > 0) : !shut[key]);
+        return '<details class="sec"' + (isOpen ? ' open' : '')
+          + ' data-sec="' + key + '">'
+          + '<summary><h2>' + esc(title) + '</h2>'
+          +   (todo > 0
+                ? '<span class="todo">' + todo + '</span>'
+                : '<span class="quiet">' + esc(emptyWord || 'none') + '</span>')
+          +   '<span class="mark">\u203a</span></summary>'
+          + '<div class="body">'
+          +   (sub ? '<div class="section-sub">' + sub + '</div>' : '')
+          +   body
+          + '</div></details>';
+      }
+
+      // Search across everything in the panel at once. One box rather
+      // than one per section: a coordinator looking for a name does not
+      // know which section it is in, which is the whole reason for
+      // looking.
+      var q = find.trim().toLowerCase();
+      function hit(/* strings */) {
+        if (!q) return true;
+        for (var i = 0; i < arguments.length; i++) {
+          if (String(arguments[i] || '').toLowerCase().indexOf(q) !== -1) return true;
+        }
+        return false;
+      }
+
+      function keepNeed(n) {
+        return hit(n.title, n.location, n.volunteer_name, n.volunteer_email,
+                   n.category, n.date);
+      }
+      function keepPerson(p) { return hit(p.name, p.email, p.phone); }
+
+      var fPend = pend.filter(keepNeed);
+      var fOpen = openOnes.filter(keepNeed);
+      var fClaimed = claimed.filter(keepNeed);
+      var fPosts = (posts || []).filter(function(p){ return hit(p.title, p.body); });
+      var fPending = pending.filter(keepPerson);
+      var fVols = vols.filter(keepPerson);
+
+      var searchBar = '<div class="searchbar">'
+        + '<input type="search" id="findbox" placeholder="Find a name, a need, a post\u2026"'
+        +   ' value="' + esc(find) + '" autocapitalize="none" autocorrect="off" />'
+        + (find ? '<button data-action="clearfind" aria-label="Clear">\u00d7</button>' : '')
+        + '</div>';
+
       content.innerHTML = banner
         + (showHelp ? helpPanel() : '')
         + failBlock
         + reqForm
         + askBar
         + pastBar
-        + '<div class="section-title">Needs an invite</div>'
-        + '<div class="section-sub">' + (pend.length
-            ? 'Optional. Changes and cancellations reach these friends on their own \u2014 '
-              + 'adding them to the Outlook event as well means you see their RSVP.'
-            : '') + '</div>'
-        + (pend.length ? pend.map(inviteCard).join('') : '<div class="empty">All caught up. Every claimed need has an invite out.</div>')
-        + '<div class="section-title">Sign someone up</div>'
-        + '<div class="section-sub">' + (openOnes.length ? 'For friends who phone rather than use the page. They get the same calendar invitation.' : '') + '</div>'
-        + roster
-        + (openOnes.length ? openOnes.map(assignCard).join('') : '<div class="empty">Nothing open right now.</div>')
-        + '<div class="section-title">Covered</div>'
-        + '<div class="section-sub">' + (claimed.length ? 'Free one up here if someone cancels by phone.' : '') + '</div>'
-        + (claimed.length ? claimed.map(claimedCard).join('') : '<div class="empty">Nothing claimed yet.</div>')
-        + '<div class="section-title">Tracey\u2019s posts</div>'
-        + '<div class="section-sub">' + ((posts && posts.length)
-            ? 'Hide one if she reposts a correction. Nobody is told a post exists that they cannot see.'
-            : 'She has not sent anything yet.') + '</div>'
-        + ((posts && posts.length) ? posts.map(postRow).join('')
-            : '<div class="empty">No posts yet.</div>')
-        + '<div class="section-title">Waiting to read her updates</div>'
-        + '<div class="section-sub">' + (pending.length
-            ? 'They have asked to read Tracey\u2019s journey. Nobody sees the journal until you approve.'
-            : '') + '</div>'
-        + (pending.length ? pending.map(pendingRow).join('')
-            : '<div class="empty">No one waiting.</div>')
-        + '<div class="section-title">Registered friends</div>'
-        + '<div class="section-sub">'+vols.length+' '+(vols.length===1?'person has':'people have')+' added themselves. '
-        + 'Approved friends can read her updates; nobody is told which level they are on.</div>'
-        + (vols.length ? vols.map(tierRow).join('')
-          : '<div class="empty">Nobody registered yet.</div>');
+        + searchBar
+
+        + sec('pending', 'Waiting to read her updates', fPending.length,
+              fPending.length
+                ? 'They have asked to read Tracey\u2019s journey. Nobody sees the '
+                  + 'journal until you approve.'
+                : '',
+              fPending.length ? fPending.map(pendingRow).join('')
+                : '<div class="empty">No one waiting.</div>',
+              'none waiting')
+
+        + sec('invites', 'Needs an invite', fPend.length,
+              fPend.length
+                ? 'Optional. Changes and cancellations reach these friends on '
+                  + 'their own \u2014 adding them to the Outlook event as well '
+                  + 'means you see their RSVP.'
+                : '',
+              fPend.length ? fPend.map(inviteCard).join('')
+                : '<div class="empty">All caught up. Every claimed need has an invite out.</div>',
+              'all sent')
+
+        + sec('open', 'Sign someone up', fOpen.length,
+              fOpen.length
+                ? 'For friends who phone rather than use the page. They get the '
+                  + 'same calendar invitation.'
+                : '',
+              roster + (fOpen.length ? fOpen.map(assignCard).join('')
+                : '<div class="empty">Nothing open right now.</div>'),
+              'nothing open')
+
+        + sec('covered', 'Covered', 0,
+              fClaimed.length ? 'Free one up here if someone cancels by phone.' : '',
+              fClaimed.length ? fClaimed.map(claimedCard).join('')
+                : '<div class="empty">Nothing claimed yet.</div>',
+              fClaimed.length + ' covered')
+
+        + sec('posts', 'Tracey\u2019s posts', 0,
+              (fPosts.length
+                ? 'Hide one if she reposts a correction. Nobody is told a post '
+                  + 'exists that they cannot see.'
+                : 'She has not sent anything yet.'),
+              fPosts.length ? fPosts.map(postRow).join('')
+                : '<div class="empty">No posts yet.</div>',
+              fPosts.length ? fPosts.length + ' posts' : 'none')
+
+        + sec('friends', 'Registered friends', 0,
+              vols.length + ' ' + (vols.length === 1 ? 'person has' : 'people have')
+                + ' added themselves. Approved friends can read her updates; '
+                + 'nobody is told which level they are on.',
+              fVols.length ? fVols.map(tierRow).join('')
+                : '<div class="empty">Nobody matches.</div>',
+              fVols.length + '');
       return;
     }
 
@@ -1576,6 +1721,48 @@
     if (!me) {
       sub.textContent = '';
     topStack.innerHTML = '';
+      // A section that can be shut, carrying a count of whatever in it is
+      // still waiting on somebody. Sections with nothing outstanding
+      // start closed, so the panel opens on what actually needs doing.
+      function sec(key, title, todo, sub, body, emptyWord) {
+        // While searching, everything with a match is open — otherwise
+        // the result is hidden behind the very section you would have to
+        // guess at.
+        var isOpen = q
+          ? true
+          : (shut[key] === undefined ? (todo > 0) : !shut[key]);
+        return '<details class="sec"' + (isOpen ? ' open' : '')
+          + ' data-sec="' + key + '">'
+          + '<summary><h2>' + esc(title) + '</h2>'
+          +   (todo > 0
+                ? '<span class="todo">' + todo + '</span>'
+                : '<span class="quiet">' + esc(emptyWord || 'none') + '</span>')
+          +   '<span class="mark">\u203a</span></summary>'
+          + '<div class="body">'
+          +   (sub ? '<div class="section-sub">' + sub + '</div>' : '')
+          +   body
+          + '</div></details>';
+      }
+
+      // Search across everything in the panel at once. One box rather
+      // than one per section: a coordinator looking for a name does not
+      // know which section it is in, which is the whole reason for
+      // looking.
+      var q = find.trim().toLowerCase();
+      function hit(/* strings */) {
+        if (!q) return true;
+        for (var i = 0; i < arguments.length; i++) {
+          if (String(arguments[i] || '').toLowerCase().indexOf(q) !== -1) return true;
+        }
+        return false;
+      }
+
+      function keepNeed(n) {
+        return hit(n.title, n.location, n.volunteer_name, n.volunteer_email,
+                   n.category, n.date);
+      }
+      function keepPerson(p) { return hit(p.name, p.email, p.phone); }
+
       content.innerHTML = banner
         + '<div class="welcome">'
         + '<p>Tracey is working her way back, and a lot of you have asked how you can help. '
@@ -1798,6 +1985,37 @@
   });
 
   try { hideAdd = localStorage.getItem('tracey_hide_add') === '1'; } catch (e) {}
+
+  // Searching and collapsing, wired once rather than on every render.
+  //
+  // Typing re-renders the panel, which would take the focus with it. So
+  // the box is re-focused and the caret put back where it was — anything
+  // less and the second character goes nowhere.
+  var findTimer = null;
+  document.addEventListener('input', function (e) {
+    if (!e.target || e.target.id !== 'findbox') return;
+    var val = e.target.value;
+    clearTimeout(findTimer);
+    findTimer = setTimeout(function () {
+      find = val;
+      render();
+      var box = document.getElementById('findbox');
+      if (box) {
+        box.focus();
+        try { box.setSelectionRange(val.length, val.length); } catch (err) {}
+      }
+    }, 180);
+  });
+
+  // Which sections are shut, remembered for the visit. Sections with
+  // nothing waiting start closed; opening one is a deliberate act and
+  // should survive the next refresh.
+  document.addEventListener('toggle', function (e) {
+    var d = e.target;
+    if (!d || !d.classList || !d.classList.contains('sec')) return;
+    var key = d.getAttribute('data-sec');
+    if (key) shut[key] = !d.open;
+  }, true);
 
   var helpBtn = document.getElementById('helpbtn');
   helpBtn.addEventListener('click', function(){
@@ -2208,6 +2426,12 @@
       if (cr.error || !cr.data || cr.data.ok !== true) {
         notice = 'Could not change that. Please try again.'; render(); return;
       }
+      await loadCoord();
+      return;
+    }
+
+    if (a === 'clearfind') {
+      find = '';
       await loadCoord();
       return;
     }
