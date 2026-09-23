@@ -10,6 +10,36 @@
 // Environment variables (already set for the other functions):
 //   SUPABASE_URL, SUPABASE_KEY, INGEST_TOKEN
 
+
+// Photographs attached to the email. She writes, she attaches a picture,
+// it appears in the post — no markdown to remember and nothing to type.
+const IMAGE_TYPES = {
+  jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+  gif: 'image/gif', webp: 'image/webp', heic: 'image/heic'
+};
+
+function findPhotos(payload) {
+  const out = [];
+  if (!Array.isArray(payload.attachments)) return out;
+
+  for (const a of payload.attachments) {
+    const name = a.file_name || a.fileName || a.name || '';
+    const type = (a.content_type || a.contentType || '').toLowerCase();
+    const ext = (name.split('.').pop() || '').toLowerCase();
+
+    let mime = null;
+    if (type.startsWith('image/')) mime = type.split(';')[0].trim();
+    else if (IMAGE_TYPES[ext]) mime = IMAGE_TYPES[ext];
+    if (!mime || !IMAGE_TYPES[mime.split('/')[1]] && !mime.startsWith('image/')) continue;
+
+    const content = String(a.content || '').replace(/\s+/g, '');
+    if (!content || content.length > 6000000) continue;
+
+    out.push({ mime: mime, bytes: content, caption: name });
+  }
+  return out;
+}
+
 // Pulls the markdown out of whatever shape the mail relay sends.
 // Prefers a .md attachment; falls back to the plain body so a quick
 // note typed straight into Mail still works.
@@ -157,7 +187,38 @@ export default async (request) => {
       console.error('Supabase rejected the post:', res.status, out);
       return new Response('Upstream error', { status: 502 });
     }
-    console.log('Stored post:', title, visibility);
+
+    // Any photographs she attached, stored against the post. A failure
+    // here loses a picture, never the writing.
+    let photos = 0;
+    try {
+      const stored = JSON.parse(out);
+      const postId = stored && stored.id;
+      const pics = findPhotos(payload);
+
+      if (postId && pics.length) {
+        for (const pic of pics) {
+          const pr = await fetch(`${SUPABASE_URL}/rest/v1/rpc/add_photo`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`
+            },
+            body: JSON.stringify({
+              p_token: INGEST_TOKEN, p_post_id: postId,
+              p_mime: pic.mime, p_bytes: pic.bytes, p_caption: pic.caption
+            })
+          });
+          if (pr.ok) photos++;
+          else console.error('Photo rejected:', pr.status, (await pr.text()).slice(0, 200));
+        }
+      }
+    } catch (e) {
+      console.error('Could not store the photos', e);
+    }
+
+    console.log('Stored post:', title, visibility, photos + ' photo(s)');
     return new Response(out, {
       status: 200, headers: { 'Content-Type': 'application/json' }
     });
