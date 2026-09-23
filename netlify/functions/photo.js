@@ -19,17 +19,24 @@ export default async (request) => {
   const url = new URL(request.url);
   const id = url.searchParams.get('id');
   const who = url.searchParams.get('as');
-  if (!id || !who) return new Response('Not found', { status: 404 });
+  const pass = url.searchParams.get('pass');
+  if (!id || (!who && !pass)) return new Response('Not found', { status: 404 });
+
+  // Two ways of being allowed: a reader identified by email, or Tracey
+  // and the coordinators by passphrase on their own pages. The second
+  // exists because those pages have no registration behind them.
+  const fn = pass ? 'get_photo_by_pass' : 'get_photo';
+  const body = pass ? { p_pass: pass, p_id: id } : { p_email: who, p_id: id };
 
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_photo`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'apikey': SUPABASE_KEY,
         'Authorization': `Bearer ${SUPABASE_KEY}`
       },
-      body: JSON.stringify({ p_email: who, p_id: id })
+      body: JSON.stringify(body)
     });
     if (!res.ok) return new Response('Not found', { status: 404 });
 
@@ -50,7 +57,7 @@ export default async (request) => {
         // includes who is asking. So a stored copy is only ever handed
         // back to the person it was made for, including by the edge
         // resizer in front of this.
-        'Cache-Control': 'public, max-age=600',
+        'Cache-Control': pass ? 'private, no-store' : 'public, max-age=600',
         'Vary': 'Accept',
         'Content-Disposition': 'inline'
       }
