@@ -204,6 +204,63 @@
   }
 
   // ---------- the view ----------
+// Shrinks a photograph on the phone before it is sent.
+  //
+  // This is what makes adding one from the page work at all: a picture
+  // straight from a camera is four or five megabytes, and every route
+  // into this app has a limit somewhere below that. Drawn onto a canvas
+  // at a sensible size it comes out around two hundred kilobytes, and
+  // looks identical on a screen.
+  //
+  // No library. The browser has done this since roughly 2012.
+  function shrinkPhoto(file) {
+  return new Promise(function (resolve, reject) {
+    if (!/^image\//.test(file.type)) {
+      reject(new Error('That is not a photograph.'));
+      return;
+    }
+
+    var reader = new FileReader();
+    reader.onerror = function () { reject(new Error('Could not read that file.')); };
+    reader.onload = function () {
+      var img = new Image();
+      img.onerror = function () {
+        // HEIC from an iPhone sometimes cannot be decoded by the
+        // browser. Choosing "Most Compatible" in Camera settings
+        // fixes it, but saying so is more use than failing silently.
+        reject(new Error('That kind of photo could not be read. '
+          + 'Try taking a screenshot of it and sending that, or set '
+          + 'Camera to Most Compatible in Settings.'));
+      };
+      img.onload = function () {
+        // Long edge of 1600: sharp on any phone, and well under any
+        // limit once compressed.
+        var MAX = 1600;
+        var w = img.width, h = img.height;
+        if (w > MAX || h > MAX) {
+          if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+          else { w = Math.round(w * MAX / h); h = MAX; }
+        }
+
+        var c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        var ctx = c.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, w, h);      // so a transparent PNG is not black
+        ctx.drawImage(img, 0, 0, w, h);
+
+        var url = c.toDataURL('image/jpeg', 0.82);
+        var comma = url.indexOf(',');
+        if (comma < 0) { reject(new Error('Could not prepare that photo.')); return; }
+
+        resolve({ mime: 'image/jpeg', bytes: url.slice(comma + 1) });
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+  }
+
   function render() {
     content.className = '';
 
@@ -239,65 +296,9 @@
     // not, which is why it asks first.
     var posts = data.posts || [];
 
-    // Shrinks a photograph on the phone before it is sent.
-  //
-  // This is what makes adding one from the page work at all: a picture
-  // straight from a camera is four or five megabytes, and every route
-  // into this app has a limit somewhere below that. Drawn onto a canvas
-  // at a sensible size it comes out around two hundred kilobytes, and
-  // looks identical on a screen.
-  //
-  // No library. The browser has done this since roughly 2012.
-  function shrinkPhoto(file) {
-    return new Promise(function (resolve, reject) {
-      if (!/^image\//.test(file.type)) {
-        reject(new Error('That is not a photograph.'));
-        return;
-      }
-
-      var reader = new FileReader();
-      reader.onerror = function () { reject(new Error('Could not read that file.')); };
-      reader.onload = function () {
-        var img = new Image();
-        img.onerror = function () {
-          // HEIC from an iPhone sometimes cannot be decoded by the
-          // browser. Choosing "Most Compatible" in Camera settings
-          // fixes it, but saying so is more use than failing silently.
-          reject(new Error('That kind of photo could not be read. '
-            + 'Try taking a screenshot of it and sending that, or set '
-            + 'Camera to Most Compatible in Settings.'));
-        };
-        img.onload = function () {
-          // Long edge of 1600: sharp on any phone, and well under any
-          // limit once compressed.
-          var MAX = 1600;
-          var w = img.width, h = img.height;
-          if (w > MAX || h > MAX) {
-            if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
-            else { w = Math.round(w * MAX / h); h = MAX; }
-          }
-
-          var c = document.createElement('canvas');
-          c.width = w; c.height = h;
-          var ctx = c.getContext('2d');
-          ctx.fillStyle = '#fff';
-          ctx.fillRect(0, 0, w, h);      // so a transparent PNG is not black
-          ctx.drawImage(img, 0, 0, w, h);
-
-          var url = c.toDataURL('image/jpeg', 0.82);
-          var comma = url.indexOf(',');
-          if (comma < 0) { reject(new Error('Could not prepare that photo.')); return; }
-
-          resolve({ mime: 'image/jpeg', bytes: url.slice(comma + 1) });
-        };
-        img.src = reader.result;
-      };
-      reader.readAsDataURL(file);
-    });
-  }
-
-  function postRow(p) {
+    function postRow(p) {
       var vis = p.visibility || 'approved';
+      var pics = p.photos || [];
       var text = String(p.body || '').replace(/[#*>_`\-|]/g, ' ')
                    .replace(/\s+/g, ' ').trim();
       var excerpt = text.length > 140 ? text.slice(0, 140) + '\u2026' : text;
