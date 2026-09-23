@@ -54,6 +54,8 @@ export default async () => {
   const alertTo = (process.env.ALERT_TO || '').trim()
     || (NOTIFY_TO || '').split(',')[0].trim();
 
+  // REPLY_TO is optional: without it replies go to the first NOTIFY_TO
+  // address, which is where they would have gone anyway.
   const required = { SUPABASE_URL, SUPABASE_KEY, INGEST_TOKEN,
                      BREVO_API_KEY, NOTIFY_FROM, NOTIFY_TO,
                      SMTP_LOGIN, SMTP_KEY, TIMEZONE };
@@ -167,6 +169,7 @@ export default async () => {
     await Promise.all([
       checkEndpoint(base, '/api/inbound-calendar', [405]),
       checkEndpoint(base, '/api/inbound-post', [405]),
+      checkEndpoint(base, '/api/photo', [404]),
       checkEndpoint(base, '/api/notify', [200]),
       // ?dry=1 so the daily check never actually emails anyone.
       checkEndpoint(base, '/api/reminders?dry=1', [200]),
