@@ -61,6 +61,21 @@
   .body code{background:var(--card-bg);border:1px solid var(--border);border-radius:4px;
     padding:1px 5px;font-size:.9em}
   .body a{color:var(--teal)}
+  /* Modest on the page: a photograph that fills the screen interrupts
+     the reading, and these sit inside a piece of writing rather than
+     being the point of it. Tapping one opens it on its own, where pinch
+     and swipe behave the way they do in Photos. */
+  .shots{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 18px}
+  .shots figure{margin:0;flex:0 1 auto;max-width:48%}
+  .shots figure.only{max-width:100%}
+  .shots a{display:block;-webkit-tap-highlight-color:transparent}
+  .shots img{max-height:26vh;width:auto;max-width:100%;display:block;
+    border-radius:10px;background:#EFEDE6;border:1px solid var(--border)}
+  .shots a:active img{opacity:.85}
+  .shots figcaption{font-size:.76rem;color:var(--text-muted);
+    margin:5px 2px 0;line-height:1.4}
+  .shots .tapnote{flex:1 1 100%;font-size:.74rem;color:var(--text-muted);
+    margin:0}
   /* A table on a phone is mostly a scrolling problem. This one scrolls
      inside its own box rather than pushing the whole page sideways. */
   .body .tablewrap{overflow-x:auto;margin:0 0 16px;-webkit-overflow-scrolling:touch}
@@ -396,10 +411,53 @@
     sub.textContent = 'Her own words, newest first. '
       + 'Please keep what she writes here between you and her.';
     content.innerHTML = posts.map(function (p) {
+      // Photographs she attached. Shown, not linked — the address behind
+      // each one is checked the same way the page is, so it is worth
+      // nothing to anybody she has not let in.
+      var pics = p.photos || [];
+      var shots = pics.map(function (ph) {
+        var src = '/api/photo?id=' + encodeURIComponent(ph.id)
+          + '&as=' + encodeURIComponent(me.email);
+
+        // Netlify resizes on the way out, so whatever she attached —
+        // Small, Medium or Actual Size — a friend downloads something
+        // sized for the screen rather than four megabytes for a picture
+        // two inches across. Done at the edge and cached there, so it
+        // costs no library and no build step.
+        //
+        // The address it resizes is the access-checked one, and the
+        // viewer's email is part of it, so a cached copy is only ever
+        // served back to the person it was made for.
+        var thumb = '/.netlify/images?url=' + encodeURIComponent(src)
+          + '&w=800&q=72';
+        // A filename is not a caption. Only show one she meant.
+        var cap = ph.caption
+          && !/\.(jpe?g|png|gif|webp|heic)$/i.test(ph.caption)
+          ? ph.caption : '';
+
+        // Tapping opens the original, because that is the one worth
+        // pinching into. Only the version on the page is shrunk.
+        //
+        // If the edge resizer is ever unavailable the picture would
+        // simply not appear, so it falls back to the full one.
+        return '<figure' + (pics.length === 1 ? ' class="only"' : '') + '>'
+          + '<a href="' + src + '" target="_blank" rel="noopener">'
+          +   '<img loading="lazy" alt="' + esc(cap || 'Photograph')
+          +   '" src="' + thumb + '"'
+          +   ' onerror="this.onerror=null;this.src=\'' + src + '\'" /></a>'
+          + (cap ? '<figcaption>' + esc(cap) + '</figcaption>' : '')
+          + '</figure>';
+      }).join('');
+
+      if (shots && pics.length) {
+        shots += '<p class="tapnote">Tap a photo to see it properly.</p>';
+      }
+
       return '<div class="post">'
         + '<h2>' + esc(p.title) + '</h2>'
         + '<p class="when">' + fmtWhen(p.published) + '</p>'
         + '<div class="body">' + markdown(p.body) + '</div>'
+        + (shots ? '<div class="shots">' + shots + '</div>' : '')
         + '</div>';
     }).join('');
   }
