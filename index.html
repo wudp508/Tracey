@@ -1705,15 +1705,20 @@
                 : '<div class="empty">No one waiting.</div>',
               'none waiting')
 
-        + sec('invites', 'Needs an invite', fPend.length,
+        // Deliberately not an orange count. Adding a friend to the
+        // Outlook invite list stopped being necessary once changes and
+        // cancellations reached them on their own — so these are things
+        // you may do, not things waiting on you, and a number in orange
+        // says the opposite.
+        + sec('invites', 'Not on the Outlook invite list', 0,
               fPend.length
-                ? 'Optional. Changes and cancellations reach these friends on '
-                  + 'their own \u2014 adding them to the Outlook event as well '
-                  + 'means you see their RSVP.'
+                ? 'Nothing needs doing here. Changes and cancellations reach '
+                  + 'these friends anyway; adding them to the Outlook event as '
+                  + 'well is only worth it if you want to see their RSVP.'
                 : '',
               fPend.length ? fPend.map(inviteCard).join('')
-                : '<div class="empty">All caught up. Every claimed need has an invite out.</div>',
-              'all sent')
+                : '<div class="empty">Everyone claimed is on the invite list.</div>',
+              fPend.length ? fPend.length + '' : 'none')
 
         + sec('open', 'Sign someone up', fOpen.length,
               fOpen.length
