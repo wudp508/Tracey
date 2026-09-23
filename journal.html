@@ -76,6 +76,28 @@
     margin:5px 2px 0;line-height:1.4}
   .shots .tapnote{flex:1 1 100%;font-size:.74rem;color:var(--text-muted);
     margin:0}
+
+  /* Opening a photograph in a new tab left people stranded: added to a
+     home screen there is no browser chrome, so nothing to go back with.
+     This viewer lives on the page and can always be closed. */
+  .viewer{position:fixed;inset:0;z-index:100;background:#12100E;
+    display:flex;align-items:center;justify-content:center;
+    padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+  .viewer .pan{width:100%;height:100%;overflow:auto;
+    -webkit-overflow-scrolling:touch;touch-action:pinch-zoom;
+    display:flex;align-items:center;justify-content:center}
+  .viewer img{max-width:100%;max-height:100%;display:block}
+  .viewer .shut{position:absolute;top:calc(env(safe-area-inset-top,0px) + 12px);
+    right:14px;width:42px;height:42px;border-radius:50%;border:none;
+    background:rgba(255,255,255,.92);color:#12100E;font-size:1.4rem;
+    line-height:1;cursor:pointer;font-family:inherit;
+    display:flex;align-items:center;justify-content:center;
+    -webkit-tap-highlight-color:transparent}
+  .viewer .shut:active{background:#fff}
+  .viewer .cap{position:absolute;left:0;right:0;
+    bottom:calc(env(safe-area-inset-bottom,0px) + 14px);
+    text-align:center;color:rgba(255,255,255,.85);font-size:.82rem;
+    padding:0 40px;line-height:1.4}
   /* A table on a phone is mostly a scrolling problem. This one scrolls
      inside its own box rather than pushing the whole page sideways. */
   .body .tablewrap{overflow-x:auto;margin:0 0 16px;-webkit-overflow-scrolling:touch}
@@ -182,6 +204,59 @@
       .replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, '$1<em>$2</em>')
       .replace(/\u0000(\d+)\u0000/g, function (_, n) { return held[+n]; });
   }
+
+
+  // Opening a photograph properly, without leaving the page.
+  //
+  // It used to open in a new tab, which is fine in a browser and a trap
+  // in a home-screen app: no address bar, no back button, no way out.
+  //
+  // A history entry goes on the stack when it opens, so the phone's own
+  // back gesture closes the photograph rather than leaving the journal.
+  var viewerOpen = false;
+
+  function showPhoto(src, caption) {
+    if (viewerOpen) return;
+    viewerOpen = true;
+
+    var v = document.createElement('div');
+    v.className = 'viewer';
+    v.innerHTML = '<div class="pan"><img src="' + src + '" alt="" /></div>'
+      + '<button class="shut" aria-label="Close">\u00d7</button>'
+      + (caption ? '<div class="cap">' + caption + '</div>' : '');
+
+    function shut(fromHistory) {
+      if (!viewerOpen) return;
+      viewerOpen = false;
+      if (v.parentNode) v.parentNode.removeChild(v);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('popstate', onPop);
+      // Take our own entry off again, unless the back gesture already did.
+      if (!fromHistory) {
+        try { history.back(); } catch (e) {}
+      }
+    }
+    function onKey(e) { if (e.key === 'Escape') shut(false); }
+    function onPop() { shut(true); }
+
+    v.addEventListener('click', function (e) {
+      // The picture itself is for looking at; everything else closes.
+      if (e.target.tagName !== 'IMG') shut(false);
+    });
+
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('popstate', onPop);
+    try { history.pushState({ photo: true }, ''); } catch (e) {}
+
+    document.body.appendChild(v);
+  }
+
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest ? e.target.closest('a[data-full]') : null;
+    if (!a) return;
+    e.preventDefault();
+    showPhoto(a.getAttribute('data-full'), a.getAttribute('data-cap') || '');
+  });
 
   function markdown(src) {
     var lines = String(src || '').replace(/\r\n/g, '\n').split('\n');
@@ -441,7 +516,8 @@
         // If the edge resizer is ever unavailable the picture would
         // simply not appear, so it falls back to the full one.
         return '<figure' + (pics.length === 1 ? ' class="only"' : '') + '>'
-          + '<a href="' + src + '" target="_blank" rel="noopener">'
+          + '<a href="#" data-full="' + esc(src) + '"'
+          +   ' data-cap="' + esc(cap) + '">'
           +   '<img loading="lazy" alt="' + esc(cap || 'Photograph')
           +   '" src="' + thumb + '"'
           +   ' onerror="this.onerror=null;this.src=\'' + src + '\'" /></a>'
