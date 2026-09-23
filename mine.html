@@ -65,6 +65,30 @@
   .section-title{font-family:'Fraunces',serif;font-size:1.2rem;font-weight:500;
     margin:26px 0 3px;letter-spacing:-.01em}
   .section-sub{color:var(--text-muted);font-size:.83rem;margin:0 0 12px;line-height:1.5}
+  .wk{border-top:1px solid var(--border);margin-top:6px}
+  .wk > summary{cursor:pointer;list-style:none;display:flex;align-items:center;
+    gap:9px;padding:13px 2px;-webkit-tap-highlight-color:transparent}
+  .wk > summary::-webkit-details-marker{display:none}
+  .wk > summary h3{font-family:'Fraunces',serif;font-size:1.05rem;font-weight:500;
+    margin:0;flex:1 1 auto;color:var(--text)}
+  .wk > summary .n{flex:0 0 auto;font-size:.72rem;font-weight:600;
+    color:var(--text-muted);background:#EFEDE6;border-radius:100px;padding:2px 9px}
+  .wk > summary .n.gap{background:var(--clay);color:#fff}
+  .wk > summary .mark{flex:0 0 auto;color:var(--text-muted);font-size:1.05rem;
+    transition:transform .15s}
+  .wk[open] > summary .mark{transform:rotate(90deg)}
+  .postrow{border:1px solid var(--border);background:var(--card-bg);
+    border-radius:10px;padding:13px;margin-bottom:9px}
+  .postrow h4{margin:0 0 2px;font-size:.93rem;font-weight:600}
+  .postrow .pmeta{color:var(--text-muted);font-size:.79rem;margin:0 0 9px}
+  .postrow .excerpt{color:var(--text-muted);font-size:.84rem;line-height:1.5;
+    margin:0 0 11px}
+  .postbtns{display:flex;gap:6px;flex-wrap:wrap}
+  .postbtns button{font-size:.75rem;font-weight:600;padding:6px 10px;
+    border-radius:6px;border:1px solid var(--border);background:var(--card-bg);
+    color:var(--text-muted);cursor:pointer;font-family:inherit}
+  .postbtns button.on{background:var(--text);border-color:var(--text);color:#fff}
+  .postbtns button.danger{color:var(--rose);border-color:var(--rose)}
   .day{font-size:.78rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;
     letter-spacing:.05em;margin:18px 0 7px}
   .item{background:var(--card-bg);border:1px solid var(--border);border-radius:10px;
@@ -121,6 +145,7 @@
 
   var pass = null, data = null, err = '';
   var showReq = false;
+  var shutWeek = {};   // weeks she has folded away
 
   try { pass = sessionStorage.getItem('tracey_pass') || null; } catch (e) {}
 
@@ -195,38 +220,119 @@
       return a < b ? -1 : 1;
     });
 
-    var schedule = days.length
-      ? days.map(function(d){
-          return '<div class="day">'
-            + esc(d === 'anytime' ? 'Whenever suits' : fmtDay(d)) + '</div>'
-            + byDay[d].map(function(n){
-                var mine = n.status === 'FILLED';
-                return '<div class="item' + (mine ? '' : ' open') + '">'
-                  + '<h4>' + esc(n.title) + '</h4>'
-                  + '<p class="meta">'
-                  +   (n.anytime
-                        ? '<span class="anytime-chip">Anytime</span>'
-                          + (n.date && n.start_time
-                              ? esc(fmtDay(n.date)) + ', ' + esc(n.start_time)
-                              : n.date ? 'by ' + esc(fmtDay(n.date))
-                              : n.start_time ? esc(n.start_time)
-                              : 'whenever suits')
-                        : esc(n.start_time)
-                          + (n.end_time ? '–' + esc(n.end_time) : '')
-                          + (n.location ? ' · ' + esc(n.location) : ''))
-                  +   '<br>'
-                  +   '<span class="who">'
-                  +   (mine ? esc(n.volunteer_name) : 'Nobody yet')
-                  +   '</span></p>'
-                  + (!mine && n.other_half_covered
-                      ? '<p class="note" style="color:var(--clay);font-weight:600">'
-                        + 'The other half of this trip is covered</p>' : '')
-                  + (String(n.instructions || '').trim()
-                      ? '<details><summary>Details</summary>'
-                        + '<p class="note">' + esc(String(n.instructions).trim()) + '</p></details>'
-                      : '')
-                  + '</div>';
-              }).join('');
+    // Her own writing, with the same three levels a coordinator has.
+    // Hiding keeps a piece in case she changes her mind; deleting does
+    // not, which is why it asks first.
+    var posts = data.posts || [];
+
+    function postRow(p) {
+      var vis = p.visibility || 'approved';
+      var text = String(p.body || '').replace(/[#*>_`\-|]/g, ' ')
+                   .replace(/\s+/g, ' ').trim();
+      var excerpt = text.length > 140 ? text.slice(0, 140) + '\u2026' : text;
+
+      function b(level, label) {
+        return '<button data-act="setvis" data-id="' + p.id + '"'
+          + ' data-vis="' + level + '"' + (vis === level ? ' class="on"' : '')
+          + '>' + label + '</button>';
+      }
+
+      return '<div class="postrow">'
+        + '<h4>' + esc(p.title) + '</h4>'
+        + '<p class="pmeta">' + esc(fmtDay(String(p.published).slice(0, 10)))
+        +   (vis === 'hidden' ? ' \u00b7 hidden from everyone'
+            : vis === 'close' ? ' \u00b7 closer circle only'
+            : ' \u00b7 everyone you have let in') + '</p>'
+        + (excerpt ? '<p class="excerpt">' + esc(excerpt) + '</p>' : '')
+        + '<div class="postbtns">'
+        +   b('approved', 'Everyone') + b('close', 'Closer') + b('hidden', 'Hide')
+        +   '<button class="danger" data-act="delpost" data-id="' + p.id + '">Delete</button>'
+        + '</div></div>';
+    }
+
+    // Grouped into weeks, with this one open and the rest folded. Seeing
+    // a month at once is not restful, and the question she is usually
+    // asking is about the next few days.
+    function weekStart(iso) {
+      var d = new Date(iso + 'T12:00:00Z');
+      d.setUTCDate(d.getUTCDate() - d.getUTCDay());   // back to Sunday
+      return d.toISOString().slice(0, 10);
+    }
+
+    function weekLabel(wk, i) {
+      if (wk === 'anytime') return 'Whenever suits';
+      if (i === 0) return 'This week';
+      if (i === 1) return 'Next week';
+      var d = new Date(wk + 'T12:00:00Z');
+      return 'Week of ' + d.toLocaleDateString(undefined,
+        { month: 'long', day: 'numeric', timeZone: 'UTC' });
+    }
+
+    function dayBlock(d) {
+      return '<div class="day">'
+        + esc(d === 'anytime' ? 'Whenever suits' : fmtDay(d)) + '</div>'
+        + byDay[d].map(item).join('');
+    }
+
+    function item(n) {
+      var covered = n.status === 'FILLED';
+      return '<div class="item' + (covered ? '' : ' open') + '">'
+        + '<h4>' + esc(n.title) + '</h4>'
+        + '<p class="meta">'
+        +   (n.anytime
+              ? '<span class="anytime-chip">Anytime</span>'
+                + (n.date && n.start_time
+                    ? esc(fmtDay(n.date)) + ', ' + esc(n.start_time)
+                    : n.date ? 'by ' + esc(fmtDay(n.date))
+                    : n.start_time ? esc(n.start_time)
+                    : 'whenever suits')
+              : esc(n.start_time)
+                + (n.end_time ? '\u2013' + esc(n.end_time) : '')
+                + (n.location ? ' \u00b7 ' + esc(n.location) : ''))
+        +   '<br><span class="who">'
+        +   (covered ? esc(n.volunteer_name) : 'Nobody yet')
+        +   '</span></p>'
+        + (!covered && n.other_half_covered
+            ? '<p class="note" style="color:var(--clay);font-weight:600">'
+              + 'The other half of this trip is covered</p>' : '')
+        + (String(n.instructions || '').trim()
+            ? '<details><summary>Details</summary>'
+              + '<p class="note">' + esc(String(n.instructions).trim()) + '</p></details>'
+            : '')
+        + '</div>';
+    }
+
+    // Undated requests keep their own group, above the weeks.
+    var byWeek = {};
+    days.forEach(function(d){
+      var k = d === 'anytime' ? 'anytime' : weekStart(d);
+      (byWeek[k] = byWeek[k] || []).push(d);
+    });
+    var weeks = Object.keys(byWeek).sort(function(a, b){
+      if (a === 'anytime') return -1;
+      if (b === 'anytime') return 1;
+      return a < b ? -1 : 1;
+    });
+
+    var dated = weeks.filter(function(w){ return w !== 'anytime'; });
+
+    var schedule = weeks.length
+      ? weeks.map(function(w){
+          var i = dated.indexOf(w);
+          var items = byWeek[w].reduce(function(acc, d){
+            return acc.concat(byDay[d]); }, []);
+          var uncovered = items.filter(function(n){ return n.status !== 'FILLED'; }).length;
+          var isOpen = shutWeek[w] === undefined ? (w === 'anytime' || i === 0)
+                                                 : !shutWeek[w];
+
+          return '<details class="wk"' + (isOpen ? ' open' : '')
+            + ' data-week="' + esc(w) + '">'
+            + '<summary><h3>' + esc(weekLabel(w, i)) + '</h3>'
+            +   '<span class="n' + (uncovered ? ' gap' : '') + '">'
+            +     (uncovered ? uncovered + ' open' : 'all covered') + '</span>'
+            +   '<span class="mark">\u203a</span></summary>'
+            + '<div>' + byWeek[w].map(dayBlock).join('') + '</div>'
+            + '</details>';
         }).join('')
       : '<div class="empty">Nothing on the calendar just now.</div>';
 
@@ -288,6 +394,12 @@
           ? open.length + (open.length === 1 ? ' thing is' : ' things are') + ' still open. Nobody expects you to sort that out.'
           : 'Everything is covered.') + '</div>'
       + schedule
+      + (posts.length
+          ? '<div class="section-title">What you have written</div>'
+            + '<div class="section-sub">Change who sees a piece, or take it '
+            + 'down. Nobody is told a post exists that they cannot see.</div>'
+            + posts.map(postRow).join('')
+          : '')
       + '<div class="section-title">Waiting to read your updates</div>'
       + '<div class="section-sub">Yours to decide. Nobody is told which level they are on.</div>'
       + pendingHtml
@@ -315,6 +427,33 @@
     var el = e.target.closest('[data-act]');
     if (!el) return;
     var act = el.getAttribute('data-act');
+
+    if (act === 'setvis') {
+      el.disabled = true;
+      var vr = await db.rpc('set_post_visibility', {
+        p_pass: pass, p_id: el.getAttribute('data-id'),
+        p_visibility: el.getAttribute('data-vis')
+      });
+      el.disabled = false;
+      if (vr.error || !vr.data || vr.data.ok !== true) {
+        window.alert('Could not change that just now.'); return;
+      }
+      await load();
+      return;
+    }
+
+    if (act === 'delpost') {
+      if (!window.confirm('Delete this for good?\n\nHiding it keeps it in '
+            + 'case you change your mind.')) return;
+      var dr = await db.rpc('delete_post', {
+        p_pass: pass, p_id: el.getAttribute('data-id')
+      });
+      if (dr.error || !dr.data || dr.data.ok !== true) {
+        window.alert('Could not delete that just now.'); return;
+      }
+      await load();
+      return;
+    }
 
     if (act === 'toggreq') {
       showReq = !showReq;
@@ -425,6 +564,14 @@
   //   pageshow          restored from cache rather than loaded
   //   focus             window refocused on a laptop
   //   resume            older Android webviews
+  // Which weeks she has folded away, kept for the visit.
+  document.addEventListener('toggle', function (e) {
+    var d = e.target;
+    if (!d || !d.classList || !d.classList.contains('wk')) return;
+    var k = d.getAttribute('data-week');
+    if (k) shutWeek[k] = !d.open;
+  }, true);
+
   document.addEventListener('visibilitychange', refreshIfStale);
   window.addEventListener('pageshow', function (e) {
     if (e.persisted) { lastLoaded = 0; refreshIfStale(); }
