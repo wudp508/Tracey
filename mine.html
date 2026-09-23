@@ -89,6 +89,20 @@
     color:var(--text-muted);cursor:pointer;font-family:inherit}
   .postbtns button.on{background:var(--text);border-color:var(--text);color:#fff}
   .postbtns button.danger{color:var(--rose);border-color:var(--rose)}
+  .pics{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 2px}
+  .pics figure{margin:0;position:relative}
+  .pics img{height:64px;width:64px;object-fit:cover;border-radius:8px;
+    border:1px solid var(--border);display:block;background:#EFEDE6}
+  .pics button{position:absolute;top:-6px;right:-6px;width:22px;height:22px;
+    border-radius:50%;border:1px solid var(--border);background:#fff;
+    color:var(--rose);font-size:.8rem;line-height:1;cursor:pointer;
+    padding:0;font-family:inherit}
+  .addpic{display:inline-flex;align-items:center;gap:6px;font-size:.75rem;
+    font-weight:600;padding:6px 11px;border-radius:100px;
+    border:1px dashed var(--border);background:transparent;
+    color:var(--text-muted);cursor:pointer;font-family:inherit}
+  .addpic input{display:none}
+  .picnote{font-size:.74rem;color:var(--text-muted);margin:6px 2px 0}
   .day{font-size:.78rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;
     letter-spacing:.05em;margin:18px 0 7px}
   .item{background:var(--card-bg);border:1px solid var(--border);border-radius:10px;
@@ -225,7 +239,64 @@
     // not, which is why it asks first.
     var posts = data.posts || [];
 
-    function postRow(p) {
+    // Shrinks a photograph on the phone before it is sent.
+  //
+  // This is what makes adding one from the page work at all: a picture
+  // straight from a camera is four or five megabytes, and every route
+  // into this app has a limit somewhere below that. Drawn onto a canvas
+  // at a sensible size it comes out around two hundred kilobytes, and
+  // looks identical on a screen.
+  //
+  // No library. The browser has done this since roughly 2012.
+  function shrinkPhoto(file) {
+    return new Promise(function (resolve, reject) {
+      if (!/^image\//.test(file.type)) {
+        reject(new Error('That is not a photograph.'));
+        return;
+      }
+
+      var reader = new FileReader();
+      reader.onerror = function () { reject(new Error('Could not read that file.')); };
+      reader.onload = function () {
+        var img = new Image();
+        img.onerror = function () {
+          // HEIC from an iPhone sometimes cannot be decoded by the
+          // browser. Choosing "Most Compatible" in Camera settings
+          // fixes it, but saying so is more use than failing silently.
+          reject(new Error('That kind of photo could not be read. '
+            + 'Try taking a screenshot of it and sending that, or set '
+            + 'Camera to Most Compatible in Settings.'));
+        };
+        img.onload = function () {
+          // Long edge of 1600: sharp on any phone, and well under any
+          // limit once compressed.
+          var MAX = 1600;
+          var w = img.width, h = img.height;
+          if (w > MAX || h > MAX) {
+            if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+            else { w = Math.round(w * MAX / h); h = MAX; }
+          }
+
+          var c = document.createElement('canvas');
+          c.width = w; c.height = h;
+          var ctx = c.getContext('2d');
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(0, 0, w, h);      // so a transparent PNG is not black
+          ctx.drawImage(img, 0, 0, w, h);
+
+          var url = c.toDataURL('image/jpeg', 0.82);
+          var comma = url.indexOf(',');
+          if (comma < 0) { reject(new Error('Could not prepare that photo.')); return; }
+
+          resolve({ mime: 'image/jpeg', bytes: url.slice(comma + 1) });
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function postRow(p) {
       var vis = p.visibility || 'approved';
       var text = String(p.body || '').replace(/[#*>_`\-|]/g, ' ')
                    .replace(/\s+/g, ' ').trim();
@@ -244,10 +315,25 @@
             : vis === 'close' ? ' \u00b7 closer circle only'
             : ' \u00b7 everyone you have let in') + '</p>'
         + (excerpt ? '<p class="excerpt">' + esc(excerpt) + '</p>' : '')
-        + '<div class="postbtns">'
+        + (pics.length
+            ? '<div class="pics">' + pics.map(function (ph) {
+                // Her passphrase rather than an email: this page has no
+                // registration behind it. Never cached anywhere shared.
+                return '<figure><img alt="" src="/api/photo?id='
+                  + encodeURIComponent(ph.id) + '&pass=' + encodeURIComponent(pass)
+                  + '" /><button data-act="delpic" data-id="' + ph.id
+                  + '" title="Remove">\u00d7</button></figure>';
+              }).join('') + '</div>'
+            : '')
+        + '<div class="postbtns" style="margin-top:9px">'
         +   b('approved', 'Everyone') + b('close', 'Closer') + b('hidden', 'Hide')
+        +   '<label class="addpic">Add a photo'
+        +     '<input type="file" accept="image/*" data-post="' + p.id + '" />'
+        +   '</label>'
         +   '<button class="danger" data-act="delpost" data-id="' + p.id + '">Delete</button>'
-        + '</div></div>';
+        + '</div>'
+        + '<p class="picnote" id="picnote-' + p.id + '"></p>'
+        + '</div>';
     }
 
     // Grouped into weeks, with this one open and the rest folded. Seeing
@@ -442,6 +528,18 @@
       return;
     }
 
+    if (act === 'delpic') {
+      if (!window.confirm('Remove this photo?')) return;
+      var pr = await db.rpc('remove_photo', {
+        p_pass: pass, p_id: el.getAttribute('data-id')
+      });
+      if (pr.error || !pr.data || pr.data.ok !== true) {
+        window.alert('Could not remove that just now.'); return;
+      }
+      await load();
+      return;
+    }
+
     if (act === 'delpost') {
       if (!window.confirm('Delete this for good?\n\nHiding it keeps it in '
             + 'case you change your mind.')) return;
@@ -565,6 +663,41 @@
   //   focus             window refocused on a laptop
   //   resume            older Android webviews
   // Which weeks she has folded away, kept for the visit.
+  // Choosing a photo: shrink it here, then send it. The shrinking is
+  // what keeps this under every limit in the chain.
+  document.addEventListener('change', async function (e) {
+    var input = e.target;
+    if (!input || input.type !== 'file' || !input.getAttribute('data-post')) return;
+
+    var postId = input.getAttribute('data-post');
+    var file = input.files && input.files[0];
+    var note = document.getElementById('picnote-' + postId);
+    input.value = '';                      // so the same file can be picked again
+    if (!file) return;
+
+    if (note) note.textContent = 'Preparing\u2026';
+
+    try {
+      var small = await shrinkPhoto(file);
+      if (note) note.textContent = 'Adding\u2026';
+
+      var r = await db.rpc('add_photo_by_pass', {
+        p_pass: pass, p_post_id: postId,
+        p_mime: small.mime, p_bytes: small.bytes,
+        p_caption: ''
+      });
+
+      if (r.error || !r.data || r.data.ok !== true) {
+        if (note) note.textContent = 'Could not add that photo.';
+        return;
+      }
+      if (note) note.textContent = '';
+      await load();
+    } catch (err) {
+      if (note) note.textContent = err.message || 'Could not add that photo.';
+    }
+  });
+
   document.addEventListener('toggle', function (e) {
     var d = e.target;
     if (!d || !d.classList || !d.classList.contains('wk')) return;
