@@ -235,12 +235,16 @@
   .journey:active{background:#F4F1EA}
   .journey strong{font-size:.82rem;font-weight:600;color:var(--text)}
   .journey .sub{display:none}
-  .tierrow{display:flex;justify-content:space-between;align-items:center;gap:10px;
-    padding:11px 0;border-top:1px solid var(--border)}
-  .tierrow .who{min-width:0}
-  .tierrow .who strong{font-weight:600;font-size:.88rem}
-  .tierrow .em{color:var(--text-muted);font-size:.79rem}
-  .tierbtns{display:flex;gap:6px;flex:0 0 auto}
+  /* Stacked rather than side by side: the buttons were squeezing the
+     name and address into a narrow column and cutting them off. Full
+     width above, buttons beneath, which also lets the buttons wrap
+     instead of overflowing. */
+  .tierrow{padding:12px 0;border-top:1px solid var(--border)}
+  .tierrow .who{min-width:0;margin-bottom:8px}
+  .tierrow .who strong{font-weight:600;font-size:.88rem;display:block}
+  .tierrow .em{color:var(--text-muted);font-size:.79rem;line-height:1.5;
+    word-break:break-word}
+  .tierbtns{display:flex;gap:6px;flex-wrap:wrap}
   .tierbtns button{font-size:.75rem;font-weight:600;padding:6px 10px;border-radius:6px;
     border:1px solid var(--border);background:var(--card-bg);color:var(--text-muted);
     cursor:pointer;font-family:inherit}
@@ -309,6 +313,9 @@
     text-decoration:none;font-size:.85rem;font-weight:600;border-radius:8px;
     padding:9px 16px;margin-right:8px}
   .setrow{margin:0 0 13px}
+  .subhead{font-family:'Fraunces',serif;font-size:.98rem;font-weight:500;
+    margin:18px 0 9px;color:var(--text)}
+  .subhead:first-child{margin-top:2px}
   .setrow label{display:block;font-size:.78rem;font-weight:600;
     color:var(--text-muted);margin:0 0 4px}
   .setrow .hint{font-weight:400;color:var(--text-muted)}
@@ -413,11 +420,40 @@
 
   // Who decides on journal access. Set in config.js. All the wording
   // below avoids he/she, so any name reads correctly.
+  // Names and labels come from the database now, so another family can
+  // change them without touching code. config.js is the fallback until
+  // they arrive, and for anyone running this without the branding
+  // migration.
+  var SET = {};
+  function word(key, fallback) {
+    var v = SET[key];
+    return (v && String(v).trim()) ? String(v).trim() : fallback;
+  }
+
   var APPROVER = (cfg.APPROVER || 'the coordinator');
   // Who to tell when something is wrong. Deliberately separate: Tracey
   // decides who reads her journal, but she should not be the person a
   // dozen friends message about a mistyped time.
   var CONTACT = (cfg.CONTACT || cfg.APPROVER || 'the coordinator');
+
+  // Re-read once the settings arrive.
+  function applyWording() {
+    APPROVER = word('approver_name', APPROVER);
+    CONTACT = word('contact_name', CONTACT);
+    CATS = [
+      { key:'rides', label: word('label_rides','Rides'), color:'var(--sage)' },
+      { key:'izzy',  label: word('label_izzy','Izzy'),   color:'var(--clay)' },
+      { key:'walks', label: word('label_walks','Walks'), color:'var(--ochre)' },
+      { key:'other', label: word('label_other','Other'), color:'var(--grey)' }
+    ];
+    catBy = {};
+    CATS.forEach(function(c){ catBy[c.key] = c; });
+    catBy['errands'] = catBy['other'];
+
+    var h1 = document.getElementById('h1');
+    if (h1) h1.textContent = word('page_title', h1.textContent);
+    document.title = word('page_title', document.title);
+  }
 
   var CATS = [
     {key:'rides',   label:'Rides',    color:'var(--sage)'},
@@ -468,6 +504,15 @@
 
   async function loadNeeds(){
     lastLoaded = Date.now();
+
+    // The wording, once. Nothing here is worth protecting — it is what
+    // the page calls itself — so it needs no passphrase and no sign-in.
+    if (!SET.loaded) {
+      try {
+        var sr = await db.rpc('public_settings');
+        if (!sr.error && sr.data) { SET = sr.data; SET.loaded = true; applyWording(); }
+      } catch (e) {}
+    }
     // Whether this person can read Tracey's journal, and whether they
     // have already asked. Failure here must never block the needs list.
     if (me) {
@@ -644,19 +689,19 @@
     if (state === 'approved' || state === 'close') {
       var unread = (access && access.unread) ? Number(access.unread) : 0;
       return '<button class="journey" data-action="journal">'
-        + '<strong>Tracey\u2019s journey</strong>'
+        + '<strong>' + esc(word('journal_title', 'Tracey\u2019s journey')) + '</strong>'
         + (unread ? '<span class="count">' + unread + '</span>' : '')
         + '</button>';
     }
 
     if (access && access.requested) {
       return '<button class="journey" data-action="journey-pending">'
-        + '<strong>Tracey\u2019s journey</strong>'
+        + '<strong>' + esc(word('journal_title', 'Tracey\u2019s journey')) + '</strong>'
         + '<span class="count waiting">asked</span></button>';
     }
 
     return '<button class="journey" data-action="journey-ask">'
-      + '<strong>Tracey\u2019s journey</strong></button>';
+      + '<strong>' + esc(word('journal_title', 'Tracey\u2019s journey')) + '</strong></button>';
   }
 
   // Written for friends rather than for whoever built it: plain language,
@@ -1745,34 +1790,69 @@
               fPosts.length ? fPosts.length + ' posts' : 'none')
 
         + sec('settings', 'Settings', 0,
-              'A few things worth changing without opening the database.',
+              'Names, labels and passphrases. Changing a name here changes '
+              + 'it everywhere \u2014 the page, the emails, the help.',
               (function(){
-                var cfg = coordData.settings || {};
+                var cfg2 = coordData.settings || {};
                 function field(key, label, hint, ph) {
                   return '<div class="setrow">'
                     + '<label>' + label
                     +   (hint ? ' <span class="hint">' + hint + '</span>' : '')
                     + '</label>'
                     + '<input type="text" id="set-' + key + '"'
-                    +   ' value="' + esc(cfg[key] || '') + '"'
+                    +   ' value="' + esc(cfg2[key] === undefined ? '' : cfg2[key]) + '"'
                     +   ' placeholder="' + esc(ph) + '"'
-                    +   ' autocapitalize="none" autocorrect="off" /></div>';
+                    +   ' autocapitalize="sentences" autocorrect="off" /></div>';
                 }
-                return field('urgent_phone', 'Number for late changes',
-                             '\u2014 a friend who drops something within a day and a half is offered this',
-                             '+1 503 555 0147')
-                  + field('urgent_name', 'Whose name is on that button', '',
-                          'Wud')
+
+                return '<h4 class="subhead">What the pages are called</h4>'
+                  + field('page_title', 'Title on the signup page', '', 'For Tracey')
+                  + field('page_intro', 'The line under it', '', 'Pick anything you can take\u2026')
+                  + field('journal_title', 'The journal button', '', 'Tracey\u2019s journey')
+                  + field('journal_intro', 'The line under that', '', 'Her own words, newest first.')
+
+                  + '<h4 class="subhead">Names friends see</h4>'
+                  + field('person_name', 'Who this is for', '', 'Tracey')
+                  + field('approver_name', 'Who approves journal readers', '', 'Tracey')
+                  + field('contact_name', 'Who a friend tells when something is wrong',
+                          '\u2014 deliberately not her', 'Wud')
+
+                  + '<h4 class="subhead">Kinds of help</h4>'
+                  + field('label_rides', 'First chip', '', 'Rides')
+                  + field('label_izzy', 'Second chip', '\u2014 a pet, a child, whoever', 'Izzy')
+                  + field('label_walks', 'Third chip', '', 'Walks')
+                  + field('label_other', 'Fourth chip', '', 'Other')
+
+                  + '<h4 class="subhead">Where and how to reach you</h4>'
                   + field('home_address', 'Her address',
                           '\u2014 what the map links navigate to; never shown as text',
                           '1400 Elm St, Mosier, OR 97040')
-                  + field('home_label', 'Shown instead of it',
-                          '\u2014 what a friend sees on a card',
-                          'Home, Mosier')
+                  + field('home_label', 'Shown instead of it', '', 'Home, Mosier')
+                  + field('urgent_phone', 'Number for late changes', '', '+1 503 555 0147')
+                  + field('urgent_name', 'Whose name is on that button', '', 'Wud')
+
                   + '<div class="field-err" id="set-err"></div>'
                   + '<div class="postbtns">'
                   +   '<button class="btn primary small" data-action="savesettings">Save</button>'
-                  + '</div>';
+                  + '</div>'
+
+                  + '<h4 class="subhead">Passphrases</h4>'
+                  + '<div class="section-sub">Changing one takes effect at once. '
+                  + 'Anyone signed in on another device stays in until they close it.</div>'
+                  + '<div class="setrow"><label>New coordinator passphrase</label>'
+                  +   '<input type="text" id="pass-coordinator" placeholder="six characters or more"'
+                  +   ' autocapitalize="none" autocorrect="off" /></div>'
+                  + '<div class="setrow"><label>New passphrase for her own page</label>'
+                  +   '<input type="text" id="pass-tracey" placeholder="six characters or more"'
+                  +   ' autocapitalize="none" autocorrect="off" /></div>'
+                  + '<div class="field-err" id="pass-err"></div>'
+                  + '<div class="postbtns">'
+                  +   '<button class="btn small" data-action="changepass">Change passphrase</button>'
+                  + '</div>'
+                  + '<p class="picnote">If a passphrase is ever lost, it can be '
+                  + 'reset in the Supabase SQL editor. That is on purpose: a lock '
+                  + 'that can only be opened from inside is not a lock anybody '
+                  + 'can recover from.</p>';
               })(),
               'edit')
 
@@ -1849,8 +1929,9 @@
     }
     // Short on purpose: every line here is a line of the list somebody
     // does not see when the page loads. The longer version is in Help.
-    sub.textContent = 'Pick anything you can take. Everyone sees the same '
-      + 'list, so nothing gets doubled up.';
+    sub.textContent = word('page_intro',
+      'Pick anything you can take. Everyone sees the same list, so nothing '
+      + 'gets doubled up.');
 
     // These two stand apart from the list: who you are, and her writing.
     // They live beside the title rather than above the needs, so nothing
@@ -2536,8 +2617,59 @@
       return;
     }
 
+    if (a === 'changepass') {
+      var slotP = document.getElementById('pass-err');
+      slotP.textContent = '';
+
+      var wanted = [
+        { which: 'coordinator', box: document.getElementById('pass-coordinator') },
+        { which: 'tracey', box: document.getElementById('pass-tracey') }
+      ].filter(function(x){ return x.box && x.box.value.trim(); });
+
+      if (!wanted.length) {
+        slotP.textContent = 'Type a new passphrase first.';
+        return;
+      }
+
+      el.disabled = true;
+      el.textContent = 'Changing\u2026';
+
+      var changedCoord = null;
+      for (var i = 0; i < wanted.length; i++) {
+        var cr2 = await db.rpc('change_passphrase', {
+          p_current: pass, p_which: wanted[i].which,
+          p_new: wanted[i].box.value.trim()
+        });
+        if (cr2.error || !cr2.data || cr2.data.ok !== true) {
+          el.disabled = false;
+          el.textContent = 'Change passphrase';
+          slotP.textContent = (cr2.data && cr2.data.reason)
+            ? cr2.data.reason : 'Could not change that.';
+          return;
+        }
+        if (wanted[i].which === 'coordinator') changedCoord = wanted[i].box.value.trim();
+      }
+
+      el.disabled = false;
+      el.textContent = 'Change passphrase';
+
+      // The one we are holding has just changed, so keep using the new
+      // one rather than logging ourselves out mid-task.
+      if (changedCoord) {
+        pass = changedCoord;
+        try { sessionStorage.setItem('coord_pass', pass); } catch (e) {}
+      }
+
+      notice = 'Changed. Write it down somewhere.';
+      await loadCoord();
+      return;
+    }
+
     if (a === 'savesettings') {
-      var keys = ['urgent_phone','urgent_name','home_address','home_label'];
+      var keys = ['urgent_phone','urgent_name','home_address','home_label',
+                  'page_title','page_intro','journal_title','journal_intro',
+                  'person_name','approver_name','contact_name',
+                  'label_rides','label_izzy','label_walks','label_other'];
       var slot = document.getElementById('set-err');
       slot.textContent = '';
       el.disabled = true;
@@ -2556,6 +2688,13 @@
       el.disabled = false;
       el.textContent = 'Save';
       if (bad) { slot.textContent = 'Could not save. Please try again.'; return; }
+
+      // Read the wording back so the page changes immediately rather
+      // than on the next visit.
+      try {
+        var sr2 = await db.rpc('public_settings');
+        if (!sr2.error && sr2.data) { SET = sr2.data; SET.loaded = true; applyWording(); }
+      } catch (e) {}
 
       notice = 'Saved.';
       await loadCoord();
