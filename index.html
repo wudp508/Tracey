@@ -313,6 +313,20 @@
     text-decoration:none;font-size:.85rem;font-weight:600;border-radius:8px;
     padding:9px 16px;margin-right:8px}
   .setrow{margin:0 0 13px}
+  .pics{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 2px}
+  .pics figure{margin:0;position:relative}
+  .pics img{height:62px;width:62px;object-fit:cover;border-radius:8px;
+    border:1px solid var(--border);display:block;background:#EFEDE6}
+  .pics button{position:absolute;top:-6px;right:-6px;width:22px;height:22px;
+    border-radius:50%;border:1px solid var(--border);background:#fff;
+    color:var(--rose);font-size:.8rem;line-height:1;cursor:pointer;
+    padding:0;font-family:inherit}
+  .addpic{display:inline-flex;align-items:center;gap:6px;font-size:.75rem;
+    font-weight:600;padding:6px 11px;border-radius:100px;
+    border:1px dashed var(--border);background:transparent;
+    color:var(--text-muted);cursor:pointer;font-family:inherit}
+  .addpic input{display:none}
+  .picnote{font-size:.74rem;color:var(--text-muted);margin:6px 2px 0}
   .subhead{font-family:'Fraunces',serif;font-size:.98rem;font-weight:500;
     margin:18px 0 9px;color:var(--text)}
   .subhead:first-child{margin-top:2px}
@@ -827,8 +841,11 @@
           '<p>Make the event on the Tracey Recovery calendar in Outlook and add '
         + 'the signup address as an attendee. It appears here within seconds.</p>'
         + '<p>Tag the title if the words alone would not say what kind of help '
-        + 'it is: <code>#rides</code> <code>#izzy</code> <code>#walks</code> '
-        + '<code>#other</code>. The tag is removed before friends see it.</p>'
+        + 'it is. Whatever the chips are called works: '
+        + CATS.map(function(c){
+              return '<code>#' + esc(String(c.label).toLowerCase().replace(/[^a-z0-9]/g,"")) + '</code>';
+            }).join(' ')
+        + '. The tag is removed before friends see it.</p>'
         + '<p>The first letter or two is enough \u2014 <code>#r</code>, '
         + '<code>#wal</code>, <code>#iz</code> \u2014 and a typo is forgiven, '
         + 'so <code>#ryde</code> and <code>#wlaks</code> both land correctly. '
@@ -1553,7 +1570,7 @@
           +     ' data-name="' + esc(p.name) + '"'
           +     ' data-knows="' + (knows ? '0' : '1') + '"'
           +     (knows ? ' class="on"' : '') + '>Address</button>'
-          +   b('none', 'No') + b('approved', 'Updates') + b('close', 'Close')
+          +   b('none', 'No') + b('approved', 'Updates') + b('close', 'Close circle')
           +   (reading
                 ? '<button data-action="resend" data-email="' + esc(p.email) + '"'
                   + ' data-name="' + esc(p.name) + '">Email link</button>'
@@ -1563,6 +1580,7 @@
 
       function postRow(p) {
         var vis = p.visibility || 'approved';
+        var pics = p.photos || [];
         var text = String(p.body || '').replace(/[#*>_`\-]/g, ' ')
                      .replace(/\s+/g, ' ').trim();
         var excerpt = text.length > 150 ? text.slice(0, 150) + '\u2026' : text;
@@ -1578,10 +1596,23 @@
               : vis === 'close' ? ' \u00b7 close circle only'
               : ' \u00b7 everyone approved') + '</p>'
           + (excerpt ? '<p class="excerpt">' + esc(excerpt) + '</p>' : '')
-          + '<div class="postbtns">'
-          +   b('approved', 'Everyone') + b('close', 'Close') + b('hidden', 'Hide')
+          + (pics.length
+              ? '<div class="pics">' + pics.map(function (ph) {
+                  return '<figure><img alt="" src="/api/photo?id='
+                    + encodeURIComponent(ph.id) + '&pass=' + encodeURIComponent(pass)
+                    + '" /><button data-action="delpic" data-id="' + ph.id
+                    + '" title="Remove">\u00d7</button></figure>';
+                }).join('') + '</div>'
+              : '')
+          + '<div class="postbtns" style="margin-top:9px">'
+          +   b('approved', 'Everyone') + b('close', 'Close circle') + b('hidden', 'Hide')
+          +   '<label class="addpic">Add photos'
+          +     '<input type="file" accept="image/*" multiple data-post="' + p.id + '" />'
+          +   '</label>'
           +   '<button class="danger" data-action="delpost" data-id="' + p.id + '">Delete</button>'
-          + '</div></div>';
+          + '</div>'
+          + '<p class="picnote" id="picnote-' + p.id + '"></p>'
+          + '</div>';
       }
 
       var pastCount = coordData.past_count || 0;
@@ -2772,6 +2803,16 @@
       return;
     }
 
+    if (a === 'delpic') {
+      if (!window.confirm('Remove this photo?')) return;
+      var pr2 = await db.rpc('remove_photo', { p_pass: pass, p_id: id });
+      if (pr2.error || !pr2.data || pr2.data.ok !== true) {
+        notice = 'Could not remove that photo.'; render(); return;
+      }
+      await loadCoord();
+      return;
+    }
+
     if (a === 'delpost') {
       if (!window.confirm('Delete this post for good? Hiding it keeps it in case she changes her mind.')) return;
       var dr = await db.rpc('delete_post', { p_pass: pass, p_id: id });
@@ -2993,6 +3034,95 @@
       document.body.appendChild(bg);
     });
   }
+
+  // Shrinks a photograph in the browser before it is sent. A picture
+  // straight from a camera is four or five megabytes and every route
+  // into this app has a limit below that; drawn onto a canvas it comes
+  // out around two hundred kilobytes and looks identical on a screen.
+  //
+  // No library. The browser has done this since roughly 2012.
+  function shrinkPhoto(file) {
+    return new Promise(function (resolve, reject) {
+      if (!/^image\//.test(file.type)) {
+        reject(new Error('That is not a photograph.')); return;
+      }
+      var reader = new FileReader();
+      reader.onerror = function () { reject(new Error('Could not read that file.')); };
+      reader.onload = function () {
+        var img = new Image();
+        img.onerror = function () {
+          reject(new Error('That kind of photo could not be read. Set Camera '
+            + 'to Most Compatible in Settings, or send a screenshot of it.'));
+        };
+        img.onload = function () {
+          var MAX = 1600, w = img.width, h = img.height;
+          if (w > MAX || h > MAX) {
+            if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+            else { w = Math.round(w * MAX / h); h = MAX; }
+          }
+          var c = document.createElement('canvas');
+          c.width = w; c.height = h;
+          var ctx = c.getContext('2d');
+          ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+          var url = c.toDataURL('image/jpeg', 0.82);
+          var comma = url.indexOf(',');
+          if (comma < 0) { reject(new Error('Could not prepare that photo.')); return; }
+          resolve({ mime: 'image/jpeg', bytes: url.slice(comma + 1) });
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // Choosing one. Shrink here, then send.
+  document.addEventListener('change', async function (e) {
+    var input = e.target;
+    if (!input || input.type !== 'file' || !input.getAttribute('data-post')) return;
+
+    var postId = input.getAttribute('data-post');
+    // Everything she picked, in the order she picked it.
+    var files = Array.prototype.slice.call(input.files || []);
+    var note = document.getElementById('picnote-' + postId);
+    input.value = '';
+    if (!files.length) return;
+
+    // Shrinking and sending five photographs takes several seconds on a
+    // phone. Saying which one it is on is the difference between working
+    // and apparently hung.
+    var done = 0, failed = [];
+    function say(msg) { if (note) note.textContent = msg; }
+
+    for (var i = 0; i < files.length; i++) {
+      var which = files.length > 1
+        ? ' (' + (i + 1) + ' of ' + files.length + ')' : '';
+      say('Preparing' + which + '\u2026');
+      try {
+        var small = await shrinkPhoto(files[i]);
+        say('Adding' + which + '\u2026');
+        var r = await db.rpc('add_photo_by_pass', {
+          p_pass: pass, p_post_id: postId,
+          p_mime: small.mime, p_bytes: small.bytes, p_caption: ''
+        });
+        if (r.error || !r.data || r.data.ok !== true) {
+          failed.push(files[i].name || 'one photo');
+        } else {
+          done++;
+        }
+      } catch (err) {
+        failed.push(files[i].name || 'one photo');
+      }
+    }
+
+    // One that fails should not take the others with it.
+    say(failed.length
+      ? (done ? done + ' added. ' : '')
+        + failed.length + ' could not be added.'
+      : '');
+
+    if (done) await loadCoord();
+  });
 
   function reportProblem() {
     return new Promise(function (resolve) {
