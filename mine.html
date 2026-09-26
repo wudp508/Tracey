@@ -327,9 +327,9 @@
               }).join('') + '</div>'
             : '')
         + '<div class="postbtns" style="margin-top:9px">'
-        +   b('approved', 'Everyone') + b('close', 'Closer') + b('hidden', 'Hide')
-        +   '<label class="addpic">Add a photo'
-        +     '<input type="file" accept="image/*" data-post="' + p.id + '" />'
+        +   b('approved', 'Everyone') + b('close', 'Close circle') + b('hidden', 'Hide')
+        +   '<label class="addpic">Add photos'
+        +     '<input type="file" accept="image/*" multiple data-post="' + p.id + '" />'
         +   '</label>'
         +   '<button class="danger" data-act="delpost" data-id="' + p.id + '">Delete</button>'
         + '</div>'
@@ -446,7 +446,7 @@
             +   '<div class="em">' + (p.access === 'close' ? 'closer circle' : 'reads your updates') + '</div></div>'
             + '<div class="btns">'
             +   '<button class="btn small' + (p.access === 'approved' ? ' on' : '') + '" data-act="set" data-email="' + esc(p.email) + '" data-level="approved">Updates</button>'
-            +   '<button class="btn small' + (p.access === 'close' ? ' on' : '') + '" data-act="set" data-email="' + esc(p.email) + '" data-level="close">Closer</button>'
+            +   '<button class="btn small' + (p.access === 'close' ? ' on' : '') + '" data-act="set" data-email="' + esc(p.email) + '" data-level="close">Close circle</button>'
             +   '<button class="btn small" data-act="set" data-email="' + esc(p.email) + '" data-level="none">Stop</button>'
             +   '<button class="btn small" data-act="resend" data-email="' + esc(p.email) + '"'
             +     ' data-name="' + esc(p.name) + '">Email link</button>'
@@ -671,32 +671,43 @@
     if (!input || input.type !== 'file' || !input.getAttribute('data-post')) return;
 
     var postId = input.getAttribute('data-post');
-    var file = input.files && input.files[0];
+    // Everything she picked, in the order she picked it.
+    var files = Array.prototype.slice.call(input.files || []);
     var note = document.getElementById('picnote-' + postId);
     input.value = '';                      // so the same file can be picked again
-    if (!file) return;
+    if (!files.length) return;
 
-    if (note) note.textContent = 'Preparing\u2026';
+    // Several photographs take several seconds on a phone. Saying which
+    // one it is on is the difference between working and apparently
+    // hung.
+    var done = 0, failed = 0;
+    function say(msg) { if (note) note.textContent = msg; }
 
-    try {
-      var small = await shrinkPhoto(file);
-      if (note) note.textContent = 'Adding\u2026';
-
-      var r = await db.rpc('add_photo_by_pass', {
-        p_pass: pass, p_post_id: postId,
-        p_mime: small.mime, p_bytes: small.bytes,
-        p_caption: ''
-      });
-
-      if (r.error || !r.data || r.data.ok !== true) {
-        if (note) note.textContent = 'Could not add that photo.';
-        return;
+    for (var i = 0; i < files.length; i++) {
+      var which = files.length > 1
+        ? ' (' + (i + 1) + ' of ' + files.length + ')' : '';
+      say('Preparing' + which + '\u2026');
+      try {
+        var small = await shrinkPhoto(files[i]);
+        say('Adding' + which + '\u2026');
+        var r = await db.rpc('add_photo_by_pass', {
+          p_pass: pass, p_post_id: postId,
+          p_mime: small.mime, p_bytes: small.bytes,
+          p_caption: ''
+        });
+        if (r.error || !r.data || r.data.ok !== true) failed++;
+        else done++;
+      } catch (err) {
+        failed++;
       }
-      if (note) note.textContent = '';
-      await load();
-    } catch (err) {
-      if (note) note.textContent = err.message || 'Could not add that photo.';
     }
+
+    // One that fails should not take the others with it.
+    say(failed
+      ? (done ? done + ' added. ' : '') + failed + ' could not be added.'
+      : '');
+
+    if (done) await load();
   });
 
   document.addEventListener('toggle', function (e) {
