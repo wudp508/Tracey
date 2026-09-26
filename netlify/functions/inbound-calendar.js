@@ -15,6 +15,15 @@
 // the distinction was not earning its place.
 const CATEGORIES = ['rides','walks','izzy','other'];
 
+// Whatever the four chips are currently called. The keys never change —
+// the database, the filters and every stored need use them — but a
+// family who renamed the second chip to "Meals" will reasonably write
+// #meals, and being told their own word is not a tag would be absurd.
+//
+// Filled in before parsing, from settings. Empty until then, which is
+// simply the behaviour before this existed.
+let LABELS = {};
+
 // An appointment that needs a lift each way. Tagged once, it becomes two
 // needs: a ride there at the start time, a ride home at the end.
 const ROUNDTRIP_RE = /#(roundtrip|bothways|ride2)\b/i;
@@ -110,6 +119,39 @@ function parseDateTime(prop, tz) {
 
 // A #tag anywhere in the title or description sets the category.
 
+
+// Reads the current chip labels, so whatever a family calls a category
+// also works as a tag. A failure here costs only the renamed words; the
+// built-in keys still work.
+async function loadLabels(SUPABASE_URL, SUPABASE_KEY) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/public_settings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      },
+      body: JSON.stringify({})
+    });
+    if (!res.ok) return;
+
+    const out = JSON.parse(await res.text());
+    const next = {};
+    for (const key of CATEGORIES) {
+      const word = String(out['label_' + key] || '').trim().toLowerCase();
+      // Only a single word can be typed as a tag. "Dog walks" cannot be
+      // written as #dog walks, so that label simply does not become one.
+      if (word && /^[a-z0-9]+$/.test(word) && !CATEGORIES.includes(word)) {
+        next[word] = key;
+      }
+    }
+    LABELS = next;
+  } catch (e) {
+    console.error('Could not read the labels', e);
+  }
+}
+
 // ---------- reading a tag that may be wrong ----------
 //
 // A tag only helps if it survives being typed on a phone by somebody
@@ -195,8 +237,21 @@ const LEGACY_TAGS = { errands: 'other', errand: 'other', err: 'other',
 
 // Returns a category, or null if no word here was meant as one.
 function tagCategory(text) {
+  const labelWords = Object.keys(LABELS);
+
   for (const w of hashWords(text)) {
     if (ROUNDTRIP_WORDS.includes(w)) continue;     // handled separately
+
+    // What the chips are currently called, exactly or near enough.
+    if (LABELS[w]) return LABELS[w];
+    const nearLabel = labelWords.filter(l => closeEnough(w, l));
+    if (nearLabel.length === 1) return LABELS[nearLabel[0]];
+
+    // A prefix of a renamed chip, the same courtesy the built-in names
+    // get — but only when it points at one of them.
+    const startsLabel = labelWords.filter(l => l.startsWith(w) && w.length >= 2);
+    if (startsLabel.length === 1) return LABELS[startsLabel[0]];
+
     if (LEGACY_TAGS[w]) return LEGACY_TAGS[w];
 
     const exact = CATEGORIES.find(c => c === w);
@@ -245,6 +300,10 @@ function stripTags(text) {
     const word = w.toLowerCase();
     if (ROUNDTRIP_EXACT.includes(word)) return '';
     if (ROUNDTRIP_FUZZY.some(t => closeEnough(word, t))) return '';
+    if (LABELS[word]) return '';
+    if (Object.keys(LABELS).filter(l => closeEnough(word, l)).length === 1) return '';
+    if (word.length >= 2
+        && Object.keys(LABELS).filter(l => l.startsWith(word)).length === 1) return '';
     if (LEGACY_TAGS[word]) return '';
     if (CATEGORIES.includes(word)) return '';
     if (CATEGORIES.filter(c => c.startsWith(word)).length === 1) return '';
@@ -701,6 +760,12 @@ export default async (request) => {
   const SUPABASE_KEY = process.env.SUPABASE_KEY;
   const INGEST_TOKEN = process.env.INGEST_TOKEN;
   const TZ = process.env.TIMEZONE || 'America/New_York';
+
+  // What the chips are called right now, so those words work as tags.
+  // Read before parsing, because the parser needs them.
+  if (SUPABASE_URL && SUPABASE_KEY) {
+    await loadLabels(SUPABASE_URL, SUPABASE_KEY);
+  }
 
   if (!SUPABASE_URL || !SUPABASE_KEY || !INGEST_TOKEN) {
     console.error('Missing environment variables');
