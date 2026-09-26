@@ -74,6 +74,27 @@ function findMarkdown(payload) {
   return null;
 }
 
+
+// Whatever the message carried, kept as it arrived.
+//
+// A post stores the plain-text version, which is what is left once a
+// mail client has stripped her headings and bold. The HTML version is
+// in the same message and holds all of it. Nothing reads this yet — the
+// point is to stop throwing it away, so old posts can be rendered
+// properly later without asking her to send them again.
+function findRaw(payload) {
+  const pick = (keys) => {
+    for (const k of keys) {
+      if (typeof payload[k] === 'string' && payload[k].trim()) return payload[k];
+    }
+    return null;
+  };
+  return {
+    html: pick(['html', 'body_html', 'htmlBody']),
+    text: pick(['plain', 'text', 'body'])
+  };
+}
+
 // Mail clients append quoted history and signatures. Trim the common
 // markers so a reply-to-self does not drag the previous post along.
 function trimReplyChrome(text) {
@@ -150,6 +171,7 @@ export default async (request) => {
                   headers['message-id'] || payload.message_id || null;
 
   const markdown = findMarkdown(payload);
+  const raw = findRaw(payload);
   if (!markdown) {
     console.log('No markdown found in message');
     // 200 so the sender gets no bounce for, say, an autoreply.
@@ -179,7 +201,10 @@ export default async (request) => {
         p_title: title,
         p_body: body,
         p_visibility: visibility,
-        p_mail_uid: mailUid
+        p_mail_uid: mailUid,
+        // Kept, not used. See findRaw above.
+        p_raw_html: raw.html,
+        p_raw_text: raw.text
       })
     });
     const out = await res.text();
