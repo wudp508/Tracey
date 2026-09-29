@@ -344,7 +344,7 @@
   .setrow label{display:block;font-size:.78rem;font-weight:600;
     color:var(--text-muted);margin:0 0 4px}
   .setrow .hint{font-weight:400;color:var(--text-muted)}
-  .setrow input{width:100%;font-family:inherit;font-size:16px;padding:10px 12px;
+  .setrow input,.setrow select{width:100%;font-family:inherit;font-size:16px;padding:10px 12px;
     border:1px solid var(--border);border-radius:8px;background:#fff;
     color:var(--text)}
   .searchbar{position:relative;margin:0 0 16px}
@@ -455,6 +455,23 @@
     return (v && String(v).trim()) ? String(v).trim() : fallback;
   }
 
+
+  // Who this page is for, and how to refer to them.
+  //
+  // A sentence's subject is always the name — "Susan has asked" — so
+  // "they" never meets a verb that would need to change. Pronouns only
+  // appear as her/his/their and her/him/them.
+  function NAME() { return word('person_name', 'Tracey'); }
+  function HER() {                        // possessive: her / his / their
+    var p = word('pronoun', 'she');
+    return p === 'he' ? 'his' : p === 'they' ? 'their' : 'her';
+  }
+  function OBJ() {                        // object: her / him / them
+    var p = word('pronoun', 'she');
+    return p === 'he' ? 'him' : p === 'they' ? 'them' : 'her';
+  }
+  function cap(t) { return t.charAt(0).toUpperCase() + t.slice(1); }
+
   var APPROVER = (cfg.APPROVER || 'the coordinator');
   // Who to tell when something is wrong. Deliberately separate: Tracey
   // decides who reads her journal, but she should not be the person a
@@ -478,6 +495,12 @@
     var h1 = document.getElementById('h1');
     if (h1) h1.textContent = word('page_title', h1.textContent);
     document.title = word('page_title', document.title);
+
+    // The name under the icon when somebody adds this to a home screen.
+    // Read from the page at the moment they add it, so changing it here
+    // is enough. (The link preview is different — see the setup notes.)
+    var appTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+    if (appTitle) appTitle.setAttribute('content', word('page_title', appTitle.getAttribute('content')));
   }
 
   var CATS = [
@@ -696,9 +719,9 @@
       + '<div class="field-err" id="e-email"></div>'
       + '<label for="r-phone">Phone <span class="opt">optional</span></label>'
       + '<input type="tel" id="r-phone" autocomplete="tel" inputmode="tel" />'
-      + '<p class="hint">Other friends only see your first name. The rest is so Tracey and the coordinators know exactly who is coming.</p>'
+      + '<p class="hint">Other friends only see your first name. The rest is so ' + esc(NAME()) + ' and the coordinators know exactly who is coming.</p>'
       + '<p class="hint">Been here before? Enter the same email and everything you have signed up for comes straight back.</p>'
-      + '<p class="hint">Only Tracey and the coordinators see your contact details. Other friends just see your first name next to what you have signed up for.</p>'
+      + '<p class="hint">Only ' + esc(NAME()) + ' and the coordinators see your contact details. Other friends just see your first name next to what you have signed up for.</p>'
       + '<div class="err" id="r-err" style="display:none"></div>'
       + '<button class="btn primary" data-action="register">Continue</button></div>';
   }
@@ -714,7 +737,7 @@
     if (state === 'approved' || state === 'close') {
       var unread = (access && access.unread) ? Number(access.unread) : 0;
       return '<button class="journey" data-action="journal">'
-        + '<strong>' + esc(word('journal_title', 'Tracey\u2019s journey')) + '</strong>'
+        + '<strong>' + esc(word('journal_title', NAME() + '\u2019s journey')) + '</strong>'
         + '<span class="right">'
         +   (unread ? '<span class="count">' + unread + ' new</span>' : '')
         +   '<span class="go">\u203a</span></span>'
@@ -723,13 +746,13 @@
 
     if (access && access.requested) {
       return '<button class="journey" data-action="journey-pending">'
-        + '<strong>' + esc(word('journal_title', 'Tracey\u2019s journey')) + '</strong>'
+        + '<strong>' + esc(word('journal_title', NAME() + '\u2019s journey')) + '</strong>'
         + '<span class="right"><span class="count waiting">asked</span>'
         +   '<span class="go">\u203a</span></span></button>';
     }
 
     return '<button class="journey" data-action="journey-ask">'
-      + '<strong>' + esc(word('journal_title', 'Tracey\u2019s journey')) + '</strong><span class="right"><span class="go">\u203a</span></span></button>';
+      + '<strong>' + esc(word('journal_title', NAME() + '\u2019s journey')) + '</strong><span class="right"><span class="go">\u203a</span></span></button>';
   }
 
   // Written for friends rather than for whoever built it: plain language,
@@ -742,7 +765,7 @@
 
     var friend = ''
       + q('What is this page for?',
-          '<p>Tracey is recovering, and a lot of people have offered to help. '
+          '<p>A lot of people have offered to help ' + esc(NAME()) + '. '
         + 'This is one list everyone can see, so nothing gets doubled up and '
         + 'nobody has to coordinate over text.</p>')
 
@@ -754,7 +777,7 @@
           '<p>So the calendar invitation can reach you. That way the time and '
         + 'place land on your own calendar, and if anything changes your '
         + 'calendar updates on its own \u2014 nobody has to text you.</p>'
-        + '<p>Only ' + esc(CONTACT) + ' and Tracey see your email and '
+        + '<p>Only ' + esc(CONTACT) + ' and ' + esc(NAME()) + ' see your email and '
         + 'phone number. Other friends just see your name next to whatever you '
         + 'have signed up for.</p>')
 
@@ -778,7 +801,7 @@
         + 'not be enough on its own \u2014 nobody may look at the page before '
         + 'it comes round. Please ask another friend if they can step in for '
         + 'you.</p>'
-        + '<p>If you cannot find anyone, reach out to Tracey or ' + esc(CONTACT)
+        + '<p>If you cannot find anyone, reach out to ' + esc(NAME()) + ' or ' + esc(CONTACT)
         + ' so they can make a quick adjustment. This is the one time it is '
         + 'worth interrupting them.</p>')
 
@@ -789,8 +812,9 @@
         + 'free up the slot on the page so someone else can take it.</p>')
 
       + q('What are the rounded buttons above the list?',
-          '<p>They are the kinds of help being asked for \u2014 Rides, Izzy, '
-        + 'Walks, Other \u2014 and tapping one narrows the list to just that '
+          '<p>They are the kinds of help being asked for \u2014 '
+        + CATS.map(function(c){ return esc(c.label); }).join(', ')
+        + ' \u2014 and tapping one narrows the list to just that '
         + 'kind.</p>'
         + '<p>The number on each is how many are still open in that group. One '
         + 'greyed out with no number has nothing open just now.</p>'
@@ -825,12 +849,12 @@
         + 'or use <strong>Share</strong> then <strong>Add to Home Screen</strong> '
         + 'in Safari.</p>')
 
-      + q('What is \u201cTracey\u2019s journey\u201d?',
-          '<p>Tracey writes about how her recovery is going. Reading it needs '
+      + q('What is \u201c' + esc(word('journal_title', NAME() + '\u2019s journey')) + '\u201d?',
+          '<p>' + esc(NAME()) + ' writes about how things are going. Reading it needs '
         + esc(APPROVER) + ' to approve you first \u2014 signing up to help does '
         + 'not automatically give you access.</p>'
         + '<p>Tap the button and it will ask on your behalf. A number on it '
-        + 'means she has written something you have not read.</p>')
+        + 'means ' + esc(NAME()) + ' has written something you have not read.</p>')
 
       + q('I am on a different phone or my browser forgot me',
           '<p>Enter the same email address again. Everything you signed up for '
@@ -839,20 +863,21 @@
       + q('Something looks wrong',
           '<p>There is a <strong>Something not working?</strong> line at the '
         + 'very bottom of the page. Tap it and say what happened \u2014 it goes '
-        + 'straight to ' + esc(CONTACT) + ', and however small it seems he '
-        + 'would rather know.</p>'
+        + 'straight to ' + esc(CONTACT) + '. However small it seems, it is worth '
+        + 'saying.</p>'
         + '<p>Worth doing for anything that did not behave as you expected: a '
         + 'need at the wrong time, someone shown who should not be, a button '
         + 'that did nothing.</p>'
-        + '<p>Not Tracey \u2014 she has asked to be left out of the day-to-day '
-        + 'while she is healing, and messages cost her energy she does not have '
-        + 'to spare.</p>');
+        + (NAME() !== CONTACT
+            ? '<p>' + esc(CONTACT) + ' handles the day-to-day so that ' + esc(NAME()) + ' does '
+              + 'not have to. Messages about arrangements are best sent there.</p>'
+            : ''));
 
     var coord = !coord_mode() ? '' : ''
       + '<h3>For coordinators</h3>'
 
       + q('Creating a need',
-          '<p>Make the event on the Tracey Recovery calendar in Outlook and add '
+          '<p>Make the event on the ' + esc(word('calendar_name', 'Tracey Recovery')) + ' calendar in Outlook and add '
         + 'the signup address as an attendee. It appears here within seconds.</p>'
         + '<p>Tag the title if the words alone would not say what kind of help '
         + 'it is. Whatever the chips are called works: '
@@ -891,25 +916,25 @@
         + '<strong>Ask for something</strong> at the top: a description, '
         + 'anything worth knowing, and a by-when if it matters. Leave the date '
         + 'blank and it stays up until somebody does it.</p>'
-        + '<p>Tracey can post these herself from her own page.</p>'
+        + '<p>' + esc(NAME()) + ' can post these from ' + HER() + ' own page too.</p>'
         + '<p>Either of you can also email the signup address with '
         + '<code>#ask</code> in the subject. Write the deadline in plain words '
         + '\u2014 <em>by Thursday</em>, <em>by tomorrow afternoon</em> \u2014 and '
         + 'it will be read out of the subject.</p>')
 
-      + q('Where to collect her, and where to take her',
-          '<p>A ride names both ends: <em>Home, Mosier \u2192 Providence '
-        + 'Rehab</em> going out, and the reverse coming back.</p>'
+      + q('Where to collect ' + OBJ() + ', and where to take ' + OBJ(),
+          '<p>A ride names both ends: <em>' + esc(word('home_label', 'Home')) + ' \u2192 the clinic'
+        + '</em> going out, and the reverse coming back.</p>'
         + '<p>Outlook only holds the destination \u2014 both ends are obvious '
-        + 'to Tracey and neither gets typed \u2014 so her address is held in '
+        + 'to ' + esc(NAME()) + ' and neither gets typed \u2014 so ' + HER() + ' address is held in '
         + 'settings instead. There is nothing to add when creating an '
         + 'event.</p>'
         + '<p>Walks, errands and anything else show their location as '
         + 'written.</p>')
 
-      + q('Who can see her address',
+      + q('Who can see ' + HER() + ' address',
           '<p>Cards always say <strong>Home</strong> and the town \u2014 for '
-        + 'everyone, including you. Her street address never appears as text '
+        + 'everyone, including you. ' + cap(HER()) + ' street address never appears as text '
         + 'anywhere on the page.</p>'
         + '<p>It lives inside the map links instead, which is more useful '
         + 'anyway: a friend wants to know how far it is from wherever they '
@@ -917,14 +942,14 @@
         + '<p><strong>Directions</strong> on the pickup starts from wherever '
         + 'they are \u2014 that is the question they are asking. '
         + '<strong>Route</strong> on the destination starts from the pickup, '
-        + 'because by then they will be standing there with her in the car.</p>'
+        + 'because by then they will be standing there with ' + OBJ() + ' in the car.</p>'
         + '<p>Tap <strong>Address</strong> next to anyone in Registered friends '
         + 'to give them that link. They are emailed the address once as well, '
         + 'so it is in their inbox.</p>'
         + '<p>Anyone who has claimed a ride gets it regardless \u2014 they '
         + 'cannot do the job otherwise.</p>'
         + '<p>Everywhere else \u2014 a clinic, a caf\u00e9 \u2014 has a '
-        + 'Directions link for everybody, because none of those is her front '
+        + 'Directions link for everybody, because none of those is ' + HER() + ' front '
         + 'door.</p>')
 
       + q('Something is filed under the wrong kind',
@@ -932,10 +957,10 @@
         + 'buttons. Tap the right one and it moves.</p>'
         + '<p>The category is guessed from the words when there is no tag, and '
         + 'a title like \u201cPhysio\u201d says nothing about a lift. Rather '
-        + 'than ask Tracey to edit and resend the event, just put it where it '
+        + 'than ask ' + esc(NAME()) + ' to edit and resend the event, just put it where it '
         + 'belongs.</p>'
         + '<p>Nothing is sent to Outlook and nobody is emailed. Where something '
-        + 'sits on this page is a coordination matter, not a change to her '
+        + 'sits on this page is a coordination matter, not a change to ' + HER() + ' '
         + 'appointment.</p>')
 
       + q('Someone phoned instead of using the page',
@@ -974,7 +999,7 @@
         + 'week, or when something genuinely needs covering, is about right.</p>')
 
       + q('Approving someone for the journal',
-          '<p><strong>Waiting to read her updates</strong> lists anyone who has '
+          '<p><strong>Waiting to read ' + HER() + ' updates</strong> lists anyone who has '
         + 'asked. Approving emails them to say so, with the link.</p>'
         + '<p><strong>Email link</strong> next to anyone already reading sends '
         + 'that again \u2014 useful for people approved before those emails '
@@ -982,9 +1007,9 @@
         + '<p>Nobody is told which level they are on, and nobody sees any sign '
         + 'that posts exist which they cannot read.</p>')
 
-      + q('Tracey wants to correct a post',
-          '<p>She reposts the corrected version by email, and you hide the old '
-        + 'one. Hiding keeps it in case she changes her mind; deleting is '
+      + q(esc(NAME()) + ' wants to correct a post',
+          '<p>' + esc(NAME()) + ' reposts the corrected version by email, and you hide the old '
+        + 'one. Hiding keeps it in case ' + esc(NAME()) + ' changes ' + HER() + ' mind; deleting is '
         + 'permanent.</p>')
 
       + q('Finding something that already happened',
@@ -1186,7 +1211,7 @@
       +   '<line x1="12" y1="8" x2="12" y2="14"/><line x1="9" y1="11" x2="15" y2="11"/>'
       +   '</svg></span>'
       + '<span class="tx"><strong>Keep this on your home screen</strong>'
-      +   '<span>One tap to see what Tracey needs.</span></span>'
+      +   '<span>One tap to see what ' + esc(NAME()) + ' needs.</span></span>'
       + '<button class="x" data-action="hideadd" aria-label="Dismiss">\u00d7</button>'
       + '</div>';
   }
@@ -1292,7 +1317,7 @@
 
     return '<p class="journey-line">'
       + (from ? 'Collect from ' + end(from, null)
-              : 'Taking her to ' + end(to, null))
+              : 'Taking ' + OBJ() + ' to ' + end(to, null))
       + '</p>';
   }
 
@@ -1320,7 +1345,7 @@
     // already relying on half a journey.
     if (n.status === 'OPEN' && !partnerOpen) {
       return '<p class="pair urgent">The ' + otherWord + ' is covered \u2014 '
-        + 'she has no ' + (n.leg === 'out' ? 'way there' : 'way home')
+        + esc(NAME()) + ' has no ' + (n.leg === 'out' ? 'way there' : 'way home')
         + ' without this</p>';
     }
 
@@ -1517,7 +1542,7 @@
             ? ' style="border-color:var(--clay);box-shadow:0 0 0 1px var(--clay)"' : '') + '>'
           + '<h4>' + esc(n.title) + '</h4>'
           + (orphaned ? '<p class="ameta" style="color:var(--clay);font-weight:600">'
-                        + 'The other half of this trip is covered \u2014 she has no way '
+                        + 'The other half of this trip is covered \u2014 ' + esc(NAME()) + ' has no way '
                         + (n.leg === 'out' ? 'there' : 'home') + '</p>' : '')
           + '<p class="ameta">' + fmtL(n.date) + ', ' + esc(n.start_time) + '</p>'
           + '<div class="arow">'
@@ -1578,7 +1603,7 @@
           + '<div class="who"><strong>' + esc(p.name) + '</strong>'
           +   '<div class="em">' + esc(p.email)
           +   (p.phone ? ' \u00b7 ' + esc(p.phone) : '')
-          +   (knows ? ' \u00b7 has her address' : '') + '</div></div>'
+          +   (knows ? ' \u00b7 has ' + HER() + ' address' : '') + '</div></div>'
           + '<div class="tierbtns">'
           +   '<button data-action="setaddr" data-email="' + esc(p.email) + '"'
           +     ' data-name="' + esc(p.name) + '"'
@@ -1669,7 +1694,7 @@
           + '<label>What is needed</label>'
           + '<input type="text" id="rq-title" placeholder="Milk, bread and something for dinner" />'
           + '<label>Anything else worth knowing</label>'
-          + '<textarea id="rq-note" placeholder="She likes the oat milk in the blue carton"></textarea>'
+          + '<textarea id="rq-note" placeholder="The oat milk in the blue carton"></textarea>'
           + '<label>Needed by (leave blank if it can wait)</label>'
           + '<input type="date" id="rq-by" />'
           + '<label>When would suit (optional)</label>'
@@ -1791,9 +1816,9 @@
         + pastBar
         + searchBar
 
-        + sec('pending', 'Waiting to read her updates', fPending.length,
+        + sec('pending', 'Waiting to read ' + HER() + ' updates', fPending.length,
               fPending.length
-                ? 'They have asked to read Tracey\u2019s journey. Nobody sees the '
+                ? 'They have asked to read ' + esc(word('journal_title', NAME() + '\u2019s journey')) + '. Nobody sees the '
                   + 'journal until you approve.'
                 : '',
               fPending.length ? fPending.map(pendingRow).join('')
@@ -1830,11 +1855,11 @@
                 : '<div class="empty">Nothing claimed yet.</div>',
               fClaimed.length + ' covered')
 
-        + sec('posts', 'Tracey\u2019s posts', 0,
+        + sec('posts', NAME() + '\u2019s posts', 0,
               (fPosts.length
-                ? 'Hide one if she reposts a correction. Nobody is told a post '
+                ? 'Hide one if ' + esc(NAME()) + ' reposts a correction. Nobody is told a post '
                   + 'exists that they cannot see.'
-                : 'She has not sent anything yet.'),
+                : esc(NAME()) + ' has not sent anything yet.'),
               fPosts.length ? fPosts.map(postRow).join('')
                 : '<div class="empty">No posts yet.</div>',
               fPosts.length ? fPosts.length + ' posts' : 'none')
@@ -1863,18 +1888,31 @@
 
                   + '<h4 class="subhead">Names friends see</h4>'
                   + field('person_name', 'Who this is for', '', 'Tracey')
+                  + (function(){
+                      var cur = cfg2.pronoun || 'she';
+                      function o(v, lab) {
+                        return '<option value="' + v + '"' + (cur === v ? ' selected' : '')
+                          + '>' + lab + '</option>';
+                      }
+                      return '<div class="setrow"><label>How to refer to them</label>'
+                        + '<select id="set-pronoun">'
+                        +   o('she', 'she / her') + o('he', 'he / him') + o('they', 'they / them')
+                        + '</select></div>';
+                    })()
                   + field('approver_name', 'Who approves journal readers', '', 'Tracey')
                   + field('contact_name', 'Who a friend tells when something is wrong',
-                          '\u2014 deliberately not her', 'Wud')
+                          '\u2014 deliberately not ' + OBJ(), 'Wud')
 
                   + '<h4 class="subhead">Kinds of help</h4>'
+                  + field('calendar_name', 'The Outlook calendar events come from',
+                          '\u2014 as the coordinator help should name it', 'Tracey Recovery')
                   + field('label_rides', 'First chip', '', 'Rides')
                   + field('label_izzy', 'Second chip', '\u2014 a pet, a child, whoever', 'Izzy')
                   + field('label_walks', 'Third chip', '', 'Walks')
                   + field('label_other', 'Fourth chip', '', 'Other')
 
                   + '<h4 class="subhead">Where and how to reach you</h4>'
-                  + field('home_address', 'Her address',
+                  + field('home_address', cap(HER()) + ' address',
                           '\u2014 what the map links navigate to; never shown as text',
                           '1400 Elm St, Mosier, OR 97040')
                   + field('home_label', 'Shown instead of it', '', 'Home, Mosier')
@@ -1892,7 +1930,7 @@
                   + '<div class="setrow"><label>New coordinator passphrase</label>'
                   +   '<input type="text" id="pass-coordinator" placeholder="six characters or more"'
                   +   ' autocapitalize="none" autocorrect="off" /></div>'
-                  + '<div class="setrow"><label>New passphrase for her own page</label>'
+                  + '<div class="setrow"><label>New passphrase for ' + HER() + ' own page</label>'
                   +   '<input type="text" id="pass-tracey" placeholder="six characters or more"'
                   +   ' autocapitalize="none" autocorrect="off" /></div>'
                   + '<div class="field-err" id="pass-err"></div>'
@@ -1908,7 +1946,7 @@
 
         + sec('friends', 'Registered friends', 0,
               vols.length + ' ' + (vols.length === 1 ? 'person has' : 'people have')
-                + ' added themselves. Approved friends can read her updates; '
+                + ' added themselves. Approved friends can read ' + HER() + ' updates; '
                 + 'nobody is told which level they are on.',
               fVols.length ? fVols.map(tierRow).join('')
                 : '<div class="empty">Nobody matches.</div>',
@@ -1916,7 +1954,7 @@
       return;
     }
 
-    h1.textContent = 'For Tracey';
+    h1.textContent = word('page_title', 'For ' + NAME());
     if (!me) {
       sub.textContent = '';
     topStack.innerHTML = '';
@@ -1967,9 +2005,9 @@
 
       content.innerHTML = banner
         + '<div class="welcome">'
-        + '<p>Tracey is working her way back, and a lot of you have asked how you can help. '
+        + '<p>A lot of you have asked how you can help ' + esc(NAME()) + '. '
         + 'This page is the answer.</p>'
-        + '<p>Everything she needs is listed here — rides to rehab, walks, company, shopping, '
+        + '<p>Everything ' + esc(NAME()) + ' needs is listed here — rides to rehab, walks, company, shopping, '
         + 'a hand with Izzy. Take whatever fits your week. You will see what is already covered, '
         + 'so nothing gets doubled up and nobody has to coordinate.</p>'
         + '<p>Thank you. It matters more than you know.</p></div>'
@@ -2298,7 +2336,7 @@
 
       var ok = true;
       if (first.length < 2) { fail(fEl, 'e-first', 'Please give your first name.'); ok = false; }
-      if (last.length < 2)  { fail(lEl, 'e-last', 'Last name too, so Tracey knows which friend this is.'); ok = false; }
+      if (last.length < 2)  { fail(lEl, 'e-last', 'Last name too, so ' + NAME() + ' knows which friend this is.'); ok = false; }
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
         fail(eEl, 'e-email', 'An email address that can receive calendar invitations.'); ok = false;
       }
@@ -2344,7 +2382,7 @@
           var takeBoth = await askYesNo(
             'Can you do the ' + otherWord + ' too?',
             'It is at ' + (claimedNeed.partner_time || '')
-              + ', and nobody has taken it yet. Without it she has no way '
+              + ', and nobody has taken it yet. Without it ' + NAME() + ' has no way '
               + (claimedNeed.leg === 'out' ? 'home' : 'there') + '.',
             'Yes, I will do both',
             'No, just the one');
@@ -2384,7 +2422,7 @@
 
       var sure = await askYesNo(
         'Free up this slot?',
-        'It goes back on the list for someone else, and Tracey is told.',
+        'It goes back on the list for someone else, and ' + NAME() + ' is told.',
         'Yes, free it up',
         'No, keep it');
       if (!sure) return;
@@ -2410,7 +2448,7 @@
         var otherLeg = thisNeed.leg === 'out' ? 'ride home' : 'ride there';
         var alsoDrop = await askYesNo(
           'You also have the ' + otherLeg,
-          'Would you like to free that up as well? If you keep it, she will '
+          'Would you like to free that up as well? If you keep it, ' + NAME() + ' will '
             + 'still need someone for the '
             + (thisNeed.leg === 'out' ? 'journey there' : 'journey home') + '.',
           'Yes, free up both',
@@ -2460,8 +2498,8 @@
 
     if (a === 'journey-ask') {
       var wants = await askYesNo(
-        'Ask to read Tracey\u2019s journey?',
-        'She writes about how her recovery is going. '
+        'Ask to read ' + word('journal_title', NAME() + '\u2019s journey') + '?',
+        NAME() + ' writes about how things are going. '
           + APPROVER + ' decides who can read it.',
         'Yes, ask for me',
         'Not now');
@@ -2476,7 +2514,7 @@
     }
 
     if (a === 'journey-pending') {
-      window.alert('Your request is with ' + APPROVER + '. You will be able to read her updates once it is approved.');
+      window.alert('Your request is with ' + APPROVER + '. You will be able to read ' + HER() + ' updates once it is approved.');
       return;
     }
 
@@ -2720,7 +2758,7 @@
     if (a === 'savesettings') {
       var keys = ['urgent_phone','urgent_name','home_address','home_label',
                   'page_title','page_intro','journal_title','journal_intro',
-                  'person_name','approver_name','contact_name',
+                  'person_name','pronoun','approver_name','contact_name','calendar_name',
                   'label_rides','label_izzy','label_walks','label_other'];
       var slot = document.getElementById('set-err');
       slot.textContent = '';
@@ -2835,7 +2873,7 @@
     }
 
     if (a === 'delpost') {
-      if (!window.confirm('Delete this post for good? Hiding it keeps it in case she changes her mind.')) return;
+      if (!window.confirm('Delete this post for good? Hiding it keeps it in case ' + NAME() + ' changes ' + HER() + ' mind.')) return;
       var dr = await db.rpc('delete_post', { p_pass: pass, p_id: id });
       if (dr.error || !dr.data || dr.data.ok !== true) {
         notice = 'Could not delete that. Please try again.'; render(); return;
@@ -2871,7 +2909,7 @@
               name: aName, address: ar2.data.address
             })
           });
-          notice = aName + ' has been emailed her address.';
+          notice = aName + ' has been emailed ' + HER() + ' address.';
         } catch (err) {
           notice = 'Turned on, but the email did not go. It is in '
             + 'Did not go out.';
@@ -2927,7 +2965,7 @@
       var em = (eEl2.value || '').trim().toLowerCase();
 
       slot.textContent = '';
-      if (nm.length < 2) { slot.textContent = 'Their name, so Tracey knows who is coming.'; return; }
+      if (nm.length < 2) { slot.textContent = 'Their name, so ' + NAME() + ' knows who is coming.'; return; }
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) {
         slot.textContent = 'An email address that can receive the calendar invitation.'; return;
       }
