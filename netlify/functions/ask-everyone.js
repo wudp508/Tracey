@@ -7,6 +7,65 @@
 // Sent as individual messages rather than one with everyone in the To
 // field, so nobody sees anybody else's address.
 
+// Who a reply reaches. Deliberately separate from who the email comes
+// from: these go out under Tracey's name because the appointments are
+// hers and she is the organizer on every invitation — but she has asked
+// not to field the day-to-day, so replies land with a coordinator.
+//
+// Falls back to the sender when unset, which is how it behaved before.
+// ---------- the words, from settings ----------
+//
+// Who the page is for and what it is called, so a clone's emails read as
+// its own. Read once and kept for a minute: a change in Settings reaches
+// the next emails quickly, without a database call for every message.
+//
+// The same rule as the pages: a sentence's subject is the name, so
+// "they" never needs a verb to change; pronouns only appear as
+// her/his/their and her/him/them.
+let WORDS = null, WORDS_AT = 0;
+async function wording() {
+  if (WORDS && Date.now() - WORDS_AT < 60000) return WORDS;
+  const { SUPABASE_URL, SUPABASE_KEY } = process.env;
+  let s = {};
+  if (SUPABASE_URL && SUPABASE_KEY) {
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/public_settings`, {
+        method: 'POST',
+        // Never let the wording hold anything up. The health check runs
+        // this first, and a check that hangs is worse than one that fails.
+        signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined,
+        headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY,
+                   'Authorization': `Bearer ${SUPABASE_KEY}` },
+        body: '{}'
+      });
+      if (r.ok) s = JSON.parse(await r.text()) || {};
+    } catch (e) { /* the defaults below are a perfectly good email */ }
+  }
+  const pick = (k, d) => (s[k] && String(s[k]).trim()) || d;
+  const name = pick('person_name', 'Tracey');
+  const p = pick('pronoun', 'she');
+  WORDS = {
+    name,
+    title: pick('page_title', 'For ' + name),
+    journal: pick('journal_title', name + '\u2019s journey'),
+    her: p === 'he' ? 'his' : p === 'they' ? 'their' : 'her',
+    obj: p === 'he' ? 'him' : p === 'they' ? 'them' : 'her'
+  };
+  WORDS_AT = Date.now();
+  return WORDS;
+}
+
+// Filled in at the start of each run, so the helpers below can use it.
+let W = { name: 'Tracey', title: 'For Tracey', journal: 'Tracey\u2019s journey',
+          her: 'her', obj: 'her' };
+
+function replyAddress() {
+  const r = (process.env.REPLY_TO || '').trim();
+  if (r) return r.split(',')[0].trim();
+  const t = (process.env.NOTIFY_TO || '').split(',')[0].trim();
+  return t || process.env.NOTIFY_FROM;
+}
+
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"]/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -20,6 +79,7 @@ function fmtDate(iso) {
 }
 
 export default async (request) => {
+  W = await wording();
   if (request.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 });
   }
@@ -142,9 +202,9 @@ export default async (request) => {
           'api-key': BREVO_API_KEY
         },
         body: JSON.stringify({
-          sender: { email: NOTIFY_FROM, name: 'For Tracey' },
+          sender: { email: NOTIFY_FROM, name: W.title },
           to: [{ email: p.email, name: p.name || undefined }],
-          replyTo: { email: NOTIFY_FROM },
+          replyTo: { email: replyAddress() },
           subject: open.length === 1
             ? 'One thing still needs someone'
             : `${open.length} things still need someone`,
