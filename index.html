@@ -169,10 +169,11 @@
   .newbar{background:#FBF3EE;border:1px solid #E8D3C4;border-radius:9px;
     padding:11px 14px;margin:20px 0 18px;font-size:.86rem;font-weight:600;
     color:var(--clay);line-height:1.45}
-  .journey .count{display:inline-block;font-size:.66rem;font-weight:700;color:#fff;
-    background:var(--clay);border-radius:100px;padding:2px 7px;
-    letter-spacing:.03em}
-  .journey .count.waiting{background:var(--grey)}
+  /* White on teal, orange numbers: the count still has to jump out. */
+  .journey .count{display:inline-block;font-size:.72rem;font-weight:700;
+    color:var(--clay);background:#fff;border-radius:100px;padding:3px 9px;
+    letter-spacing:.02em}
+  .journey .count.waiting{color:#fff;background:rgba(255,255,255,.22)}
   .ask-bg{position:fixed;inset:0;background:rgba(43,35,33,.45);z-index:90;
     display:flex;align-items:center;justify-content:center;padding:22px}
   .ask{background:var(--card-bg);border-radius:14px;padding:22px 20px 18px;
@@ -228,12 +229,21 @@
   .assign input{font-size:.87rem;padding:8px 10px;margin-bottom:7px}
   .arow{display:flex;gap:8px}
   .arow input{flex:1;min-width:0}
-  .journey{display:flex;align-items:center;gap:7px;text-align:left;
-    background:var(--card-bg);border:1px solid var(--border);border-radius:100px;
-    padding:6px 13px;cursor:pointer;font-family:inherit;flex:0 0 auto;
-    white-space:nowrap;-webkit-tap-highlight-color:transparent}
-  .journey:active{background:#F4F1EA}
-  .journey strong{font-size:.82rem;font-weight:600;color:var(--text)}
+  /* Her writing is the other reason people come here. As a small pill
+     tucked beside the title it was easy to miss, so it has its own row,
+     most of the page wide, in a solid colour nothing else on the page
+     uses as a fill. The arrow says it goes somewhere. */
+  .journey{display:flex;align-items:center;justify-content:space-between;gap:10px;
+    width:66%;min-width:230px;max-width:100%;text-align:left;
+    background:var(--teal);border:none;border-radius:12px;
+    padding:13px 16px;margin:2px 0 18px;cursor:pointer;font-family:inherit;
+    box-shadow:0 1px 3px rgba(43,35,33,.14);
+    -webkit-tap-highlight-color:transparent}
+  .journey:active{background:#324B4C}
+  .journey strong{font-size:.98rem;font-weight:600;color:#fff;line-height:1.3}
+  .journey .right{display:flex;align-items:center;gap:9px;flex:0 0 auto}
+  .journey .go{color:rgba(255,255,255,.85);font-size:1.35rem;line-height:1;
+    margin-top:-2px}
   .journey .sub{display:none}
   /* Stacked rather than side by side: the buttons were squeezing the
      name and address into a narrow column and cutting them off. Full
@@ -704,18 +714,21 @@
       var unread = (access && access.unread) ? Number(access.unread) : 0;
       return '<button class="journey" data-action="journal">'
         + '<strong>' + esc(word('journal_title', 'Tracey\u2019s journey')) + '</strong>'
-        + (unread ? '<span class="count">' + unread + '</span>' : '')
+        + '<span class="right">'
+        +   (unread ? '<span class="count">' + unread + ' new</span>' : '')
+        +   '<span class="go">\u203a</span></span>'
         + '</button>';
     }
 
     if (access && access.requested) {
       return '<button class="journey" data-action="journey-pending">'
         + '<strong>' + esc(word('journal_title', 'Tracey\u2019s journey')) + '</strong>'
-        + '<span class="count waiting">asked</span></button>';
+        + '<span class="right"><span class="count waiting">asked</span>'
+        +   '<span class="go">\u203a</span></span></button>';
     }
 
     return '<button class="journey" data-action="journey-ask">'
-      + '<strong>' + esc(word('journal_title', 'Tracey\u2019s journey')) + '</strong></button>';
+      + '<strong>' + esc(word('journal_title', 'Tracey\u2019s journey')) + '</strong><span class="right"><span class="go">\u203a</span></span></button>';
   }
 
   // Written for friends rather than for whoever built it: plain language,
@@ -1581,7 +1594,12 @@
       function postRow(p) {
         var vis = p.visibility || 'approved';
         var pics = p.photos || [];
-        var text = String(p.body || '').replace(/[#*>_`\-]/g, ' ')
+        var text = String(p.body || '')
+          // A post from a Word file is HTML: take the tags out before the
+          // excerpt, or the preview would be markup.
+          .replace(/^<!--docx-->/, '').replace(/<[^>]+>/g, ' ')
+          .replace(/&nbsp;|\u00a0/g, ' ').replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/[#*>_`\-]/g, ' ')
                      .replace(/\s+/g, ' ').trim();
         var excerpt = text.length > 150 ? text.slice(0, 150) + '\u2026' : text;
         function b(level, label) {
@@ -1970,8 +1988,7 @@
     topStack.innerHTML =
       '<div class="me"><span class="who"><strong>' + esc(me.name)
       + '</strong></span>'
-      + '<button class="btn link" data-action="editme">Change</button></div>'
-      + journeyButton();
+      + '<button class="btn link" data-action="editme">Change</button></div>';
 
     var list = cat === 'all' ? needs : needs.filter(function(n){ return n.category === cat; });
     var open = list.filter(function(n){ return n.status === 'OPEN'; });
@@ -2083,6 +2100,9 @@
     content.innerHTML = banner
       + (showHelp ? helpPanel() : '')
       + addHomeCard()
+      // Straight under the title, before anything else: the other reason
+      // anyone opens this page.
+      + journeyButton()
       + newBar
       + yoursBox()
       // The banner announces the section; the chips narrow it. Reading
