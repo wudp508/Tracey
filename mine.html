@@ -299,7 +299,12 @@
     function postRow(p) {
       var vis = p.visibility || 'approved';
       var pics = p.photos || [];
-      var text = String(p.body || '').replace(/[#*>_`\-|]/g, ' ')
+      var text = String(p.body || '')
+          // A post from a Word file is HTML: take the tags out before the
+          // excerpt, or the preview would be markup.
+          .replace(/^<!--docx-->/, '').replace(/<[^>]+>/g, ' ')
+          .replace(/&nbsp;|\u00a0/g, ' ').replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/[#*>_`\-|]/g, ' ')
                    .replace(/\s+/g, ' ').trim();
       var excerpt = text.length > 140 ? text.slice(0, 140) + '\u2026' : text;
 
@@ -768,6 +773,16 @@
     if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
     window.location.reload();
   }
+
+  // The name under the icon if she adds this page to a home screen.
+  (async function () {
+    try {
+      var r = await db.rpc('public_settings');
+      var t = r && r.data && (r.data.page_title || ('For ' + (r.data.person_name || '')));
+      var m = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+      if (t && m) m.setAttribute('content', t);
+    } catch (e) {}
+  })();
 
   checkBuild();
   setInterval(function () {
