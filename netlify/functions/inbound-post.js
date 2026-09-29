@@ -401,6 +401,38 @@ function trimReplyChrome(text) {
   return out.trim();
 }
 
+// ---------- who may publish ----------
+//
+// Anything sent to the journal address is published to every approved
+// reader, straight away. For a long time nothing checked who sent it: the
+// only protection was that the address is a long random string, and
+// addresses get harvested. A spam email reaching it would have appeared in
+// her journal.
+//
+// JOURNAL_SENDERS if set, otherwise NOTIFY_TO — the people who coordinate,
+// which on Tracey's site already includes her. So an existing site needs
+// nothing new configured.
+//
+// A From address can be forged, so a sender the mail relay reports as
+// failing SPF is refused even when the address is on the list. A missing
+// result is not treated as a failure: not every relay reports one.
+function journalSenderAllowed(payload) {
+  const allow = (process.env.JOURNAL_SENDERS || process.env.NOTIFY_TO || '')
+    .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+  if (!allow.length) return { ok: false, who: '' };
+
+  const headers = payload.headers || {};
+  const envelope = payload.envelope || {};
+  const raw = String(headers.From || headers.from || payload.from || envelope.from || '')
+    .toLowerCase();
+  const who = (raw.match(/[\w.+-]+@[\w.-]+\.\w+/) || [''])[0];
+  if (!who || !allow.includes(who)) return { ok: false, who };
+
+  const spf = String((envelope.spf && envelope.spf.result) || '').toLowerCase();
+  if (spf === 'fail') return { ok: false, who: who + ' (SPF failed)' };
+  return { ok: true, who };
+}
+
 export default async (request) => {
   if (request.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 });
@@ -437,6 +469,14 @@ export default async (request) => {
   }
 
   const headers = payload.headers || {};
+
+  // Refused with a 200, not an error: an error makes the relay retry, and
+  // there is nothing to retry. The log says who it was.
+  const sender = journalSenderAllowed(payload);
+  if (!sender.ok) {
+    console.log('Journal post refused from', sender.who || 'an unknown sender');
+    return new Response('Not accepted: sender is not on the journal list', { status: 200 });
+  }
   let subject = payload.subject || headers.Subject || headers.subject || '';
   const mailUid = headers['Message-ID'] || headers['Message-Id'] ||
                   headers['message-id'] || payload.message_id || null;
