@@ -33,6 +33,49 @@ function replyAddress() {
   return t || process.env.NOTIFY_FROM;
 }
 
+
+// ---------- the words, from settings ----------
+//
+// Who the page is for and what it is called, so a clone's emails read as
+// its own. Read once and kept for a minute: a change in Settings reaches
+// the next emails quickly, without a database call for every message.
+//
+// The same rule as the pages: a sentence's subject is the name, so
+// "they" never needs a verb to change; pronouns only appear as
+// her/his/their and her/him/them.
+let WORDS = null, WORDS_AT = 0;
+async function wording() {
+  if (WORDS && Date.now() - WORDS_AT < 60000) return WORDS;
+  const { SUPABASE_URL, SUPABASE_KEY } = process.env;
+  let s = {};
+  if (SUPABASE_URL && SUPABASE_KEY) {
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/public_settings`, {
+        method: 'POST',
+        // Never let the wording hold anything up. The health check runs
+        // this first, and a check that hangs is worse than one that fails.
+        signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined,
+        headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY,
+                   'Authorization': `Bearer ${SUPABASE_KEY}` },
+        body: '{}'
+      });
+      if (r.ok) s = JSON.parse(await r.text()) || {};
+    } catch (e) { /* the defaults below are a perfectly good email */ }
+  }
+  const pick = (k, d) => (s[k] && String(s[k]).trim()) || d;
+  const name = pick('person_name', 'Tracey');
+  const p = pick('pronoun', 'she');
+  WORDS = {
+    name,
+    title: pick('page_title', 'For ' + name),
+    journal: pick('journal_title', name + '\u2019s journey'),
+    her: p === 'he' ? 'his' : p === 'they' ? 'their' : 'her',
+    obj: p === 'he' ? 'him' : p === 'they' ? 'them' : 'her'
+  };
+  WORDS_AT = Date.now();
+  return WORDS;
+}
+
 function esc(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -125,6 +168,7 @@ async function record(kind, ok, recipient, needId, detail, payload) {
 // API cannot express that, so this goes over SMTP where we control the
 // message structure.
 async function sendInvite(env, need, why) {
+  const W = await wording();
   const ics = addAttendee(need.ics, need.email, need.volunteer);
   if (!ics) {
     return 'no stored invitation for this need';
@@ -148,7 +192,7 @@ async function sendInvite(env, need, why) {
       </p>
       ${need.instructions ? `<p style="margin:0 0 14px">${esc(need.instructions)}</p>` : ''}
       ${why === 'updated'
-        ? `<p style="margin:0 0 14px">Tracey has changed this one. The details
+        ? `<p style="margin:0 0 14px">${esc(W.name)} has changed this one. The details
            above are the new ones, and your calendar should update on its
            own.</p>
            <p style="margin:0 0 14px"><strong>If the new time does not work for
@@ -186,7 +230,7 @@ async function sendInvite(env, need, why) {
     });
 
     await transport.sendMail({
-      from: { name: 'For Tracey', address: env.NOTIFY_FROM },
+      from: { name: W.title, address: env.NOTIFY_FROM },
       to: need.volunteer ? `"${need.volunteer}" <${need.email}>` : need.email,
       replyTo: replyAddress(),
       subject: (why === 'updated' ? 'Changed: ' : '') + `${need.title} — ${when}`,
@@ -215,6 +259,7 @@ async function sendInvite(env, need, why) {
 }
 
 export default async (request) => {
+  const W = await wording();
   // A GET shows what is configured, so problems can be diagnosed from a
   // browser. Reports only whether each value is present, never the value.
   if (request.method === 'GET') {
@@ -269,10 +314,10 @@ export default async (request) => {
             'api-key': process.env.BREVO_API_KEY
           },
           body: JSON.stringify({
-            sender: { email: process.env.NOTIFY_FROM, name: 'For Tracey' },
+            sender: { email: process.env.NOTIFY_FROM, name: W.title },
             to: (process.env.NOTIFY_TO || '').split(',')
                   .map(e => e.trim()).filter(Boolean).map(e => ({ email: e })),
-            subject: 'Test from the Tracey signup page',
+            subject: `Test from ${W.title}`,
             htmlContent: '<p>If you are reading this, notifications are working.</p>',
             textContent: 'If you are reading this, notifications are working.'
           })
@@ -322,9 +367,9 @@ export default async (request) => {
     const html = `
       <div style="font-family:-apple-system,Segoe UI,sans-serif;font-size:15px;
                   line-height:1.55;color:#2B2321;max-width:480px">
-        <p style="font-size:17px;font-weight:600;margin:0 0 14px">Someone asked to read Tracey's updates</p>
+        <p style="font-size:17px;font-weight:600;margin:0 0 14px">Someone asked to read ${esc(W.name)}&rsquo;s updates</p>
         <p style="margin:0 0 14px"><strong>${esc(who || addr)}</strong><br>${esc(addr)}</p>
-        <p style="margin:0 0 14px">They cannot see anything she has written until you approve them.
+        <p style="margin:0 0 14px">They cannot see anything ${esc(W.name)} has written until you approve them.
         Open the coordinator view to decide.</p>
         ${site ? `<p style="margin:18px 0 0"><a href="${site}" style="color:#3D5A5B">Open the signup page</a></p>` : ''}
       </div>`;
@@ -338,11 +383,11 @@ export default async (request) => {
           'api-key': BREVO_API_KEY
         },
         body: JSON.stringify({
-          sender: { email: NOTIFY_FROM, name: 'For Tracey' },
+          sender: { email: NOTIFY_FROM, name: W.title },
           to: NOTIFY_TO.split(',').map(e => e.trim()).filter(Boolean).map(e => ({ email: e })),
-          subject: `${who || addr} asked to read Tracey's updates`,
+          subject: `${who || addr} asked to read ${W.name}'s updates`,
           htmlContent: html,
-          textContent: `${who || addr} (${addr}) asked to read Tracey's updates. `
+          textContent: `${who || addr} (${addr}) asked to read ${W.name}'s updates. `
                      + `They cannot see anything until you approve them.`
         })
       });
@@ -375,15 +420,15 @@ export default async (request) => {
       <div style="font-family:-apple-system,Segoe UI,sans-serif;font-size:15px;
                   line-height:1.6;color:#2B2321;max-width:460px">
         <p style="font-size:17px;font-weight:600;margin:0 0 14px">
-          ${esc(first)}, here is Tracey&rsquo;s address</p>
+          ${esc(first)}, here is ${esc(W.name)}&rsquo;s address</p>
         <p style="margin:0 0 16px;font-size:16px">
           <strong>${esc(addr)}</strong></p>
-        <p style="margin:0 0 14px">Most pickups are from her door, so this is
-          what you need for a ride. It will show on the signup page from now on
-          as well.</p>
+        <p style="margin:0 0 14px">Most pickups are from ${W.her} door, so this is
+          what you need for a ride. The Directions links on the signup page will
+          take you there as well.</p>
         <p style="margin:0;color:#6E6558;font-size:13.5px">
           Please keep it to yourself. The signup page can be forwarded, which is
-          why it does not show her address to everyone.</p>
+          why it does not show ${W.her} address to everyone.</p>
         ${site ? `<p style="margin:18px 0 0"><a href="${site}" style="color:#3D5A5B">Open the signup page</a></p>` : ''}
       </div>`;
 
@@ -396,15 +441,15 @@ export default async (request) => {
           'api-key': BREVO_API_KEY
         },
         body: JSON.stringify({
-          sender: { email: NOTIFY_FROM, name: 'For Tracey' },
+          sender: { email: NOTIFY_FROM, name: W.title },
           to: [{ email: to, name: who || undefined }],
           replyTo: { email: replyAddress() },
-          subject: "Tracey's address, for when you are driving",
+          subject: `${W.name}'s address, for when you are driving`,
           htmlContent: html,
-          textContent: `${first}, here is Tracey's address.\n\n${addr}\n\n`
-            + `Most pickups are from her door, so this is what you need for a `
+          textContent: `${first}, here is ${W.name}'s address.\n\n${addr}\n\n`
+            + `Most pickups are from ${W.her} door, so this is what you need for a `
             + `ride. Please keep it to yourself \u2014 the signup page can be `
-            + `forwarded, which is why it does not show her address to everyone.`
+            + `forwarded, which is why it does not show ${W.her} address to everyone.`
         })
       });
       if (!res.ok) {
@@ -461,7 +506,7 @@ export default async (request) => {
           'api-key': BREVO_API_KEY
         },
         body: JSON.stringify({
-          sender: { email: NOTIFY_FROM, name: 'For Tracey' },
+          sender: { email: NOTIFY_FROM, name: W.title },
           to: to.split(',').map(e => e.trim()).filter(Boolean).map(e => ({ email: e })),
           // Replying goes to the friend, not to the system, so a quick
           // answer needs no address hunting.
@@ -505,20 +550,20 @@ export default async (request) => {
       <div style="font-family:-apple-system,Segoe UI,sans-serif;font-size:15px;
                   line-height:1.6;color:#2B2321;max-width:460px">
         <p style="font-size:17px;font-weight:600;margin:0 0 14px">
-          ${esc(first)}, you can read Tracey's updates</p>
+          ${esc(first)}, you can read ${esc(W.name)}&rsquo;s updates</p>
         <p style="margin:0 0 14px">${again
           ? 'Here is the link again, in case it went astray.'
-          : 'She has been writing about how her recovery is going, and you are '
+          : esc(W.name) + ' has been writing about how things are going, and you are '
             + 'welcome to read it.'}</p>
         <p style="margin:0 0 18px">Open the signup page and tap
-          <strong>Tracey&rsquo;s journey</strong>.</p>
+          <strong>${esc(W.journal)}</strong>.</p>
         <p style="margin:0 0 18px">
           <a href="${site}" style="color:#3D5A5B;font-weight:600">${esc(site)}</a></p>
         <p style="margin:0;color:#6E6558;font-size:13.5px">
-          This is Tracey&rsquo;s own writing, shared with people she has chosen.
-          <strong>Please don&rsquo;t forward it, or pass on what she has
-          written.</strong> The link itself will not open for anyone else, but
-          her words travel easily once they leave here.</p>
+          This is ${esc(W.name)}&rsquo;s own writing, shared with the people chosen
+          to read it. <strong>Please don&rsquo;t forward it, or pass on what
+          ${esc(W.name)} has written.</strong> The link itself will not open for
+          anyone else, but writing travels easily once it leaves here.</p>
       </div>`;
 
     try {
@@ -530,22 +575,22 @@ export default async (request) => {
           'api-key': BREVO_API_KEY
         },
         body: JSON.stringify({
-          sender: { email: NOTIFY_FROM, name: 'For Tracey' },
+          sender: { email: NOTIFY_FROM, name: W.title },
           to: [{ email: addr, name: who || undefined }],
           replyTo: { email: replyAddress() },
           subject: again
-            ? "Tracey's updates \u2014 the link again"
-            : "You can read Tracey's updates",
+            ? `${W.name}'s updates \u2014 the link again`
+            : `You can read ${W.name}'s updates`,
           htmlContent: html,
-          textContent: `${first}, you can read Tracey's updates.\n\n`
+          textContent: `${first}, you can read ${W.name}'s updates.\n\n`
             + (again ? 'Here is the link again.\n\n'
-                     : 'She has been writing about how her recovery is going.\n\n')
-            + `Open the signup page and tap "Tracey's journey".\n\n`
+                     : W.name + ' has been writing about how things are going.\n\n')
+            + `Open the signup page and tap "${W.journal}".\n\n`
             + `${site}\n\n`
-            + `This is Tracey's own writing, shared with people she has chosen. `
-            + `Please don't forward it, or pass on what she has written. The `
-            + `link itself will not open for anyone else, but her words travel `
-            + `easily once they leave here.`
+            + `This is ${W.name}'s own writing, shared with the people chosen to read it. `
+            + `Please don't forward it, or pass on what ${W.name} has written. The `
+            + `link itself will not open for anyone else, but writing travels `
+            + `easily once it leaves here.`
         })
       });
       if (!res.ok) {
@@ -632,7 +677,7 @@ export default async (request) => {
             'api-key': BREVO_API_KEY
           },
           body: JSON.stringify({
-            sender: { email: NOTIFY_FROM, name: 'For Tracey' },
+            sender: { email: NOTIFY_FROM, name: W.title },
             to: [{ email: need.email, name: need.volunteer || undefined }],
             replyTo: { email: replyAddress() },
             subject: `Cancelled: ${need.title} \u2014 ${when}`,
@@ -740,7 +785,7 @@ export default async (request) => {
           'api-key': BREVO_API_KEY
         },
         body: JSON.stringify({
-          sender: { email: NOTIFY_FROM, name: 'For Tracey' },
+          sender: { email: NOTIFY_FROM, name: W.title },
           to: recipients,
           subject: subject,
           htmlContent: html,
