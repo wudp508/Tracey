@@ -11,6 +11,65 @@
 // Runs at /api/reminders so it can be tested on demand; reminders-cron.js
 // calls it at 6pm Pacific.
 
+// Who a reply reaches. Deliberately separate from who the email comes
+// from: these go out under Tracey's name because the appointments are
+// hers and she is the organizer on every invitation — but she has asked
+// not to field the day-to-day, so replies land with a coordinator.
+//
+// Falls back to the sender when unset, which is how it behaved before.
+// ---------- the words, from settings ----------
+//
+// Who the page is for and what it is called, so a clone's emails read as
+// its own. Read once and kept for a minute: a change in Settings reaches
+// the next emails quickly, without a database call for every message.
+//
+// The same rule as the pages: a sentence's subject is the name, so
+// "they" never needs a verb to change; pronouns only appear as
+// her/his/their and her/him/them.
+let WORDS = null, WORDS_AT = 0;
+async function wording() {
+  if (WORDS && Date.now() - WORDS_AT < 60000) return WORDS;
+  const { SUPABASE_URL, SUPABASE_KEY } = process.env;
+  let s = {};
+  if (SUPABASE_URL && SUPABASE_KEY) {
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/public_settings`, {
+        method: 'POST',
+        // Never let the wording hold anything up. The health check runs
+        // this first, and a check that hangs is worse than one that fails.
+        signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined,
+        headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY,
+                   'Authorization': `Bearer ${SUPABASE_KEY}` },
+        body: '{}'
+      });
+      if (r.ok) s = JSON.parse(await r.text()) || {};
+    } catch (e) { /* the defaults below are a perfectly good email */ }
+  }
+  const pick = (k, d) => (s[k] && String(s[k]).trim()) || d;
+  const name = pick('person_name', 'Tracey');
+  const p = pick('pronoun', 'she');
+  WORDS = {
+    name,
+    title: pick('page_title', 'For ' + name),
+    journal: pick('journal_title', name + '\u2019s journey'),
+    her: p === 'he' ? 'his' : p === 'they' ? 'their' : 'her',
+    obj: p === 'he' ? 'him' : p === 'they' ? 'them' : 'her'
+  };
+  WORDS_AT = Date.now();
+  return WORDS;
+}
+
+// Filled in at the start of each run, so the helpers below can use it.
+let W = { name: 'Tracey', title: 'For Tracey', journal: 'Tracey\u2019s journey',
+          her: 'her', obj: 'her' };
+
+function replyAddress() {
+  const r = (process.env.REPLY_TO || '').trim();
+  if (r) return r.split(',')[0].trim();
+  const t = (process.env.NOTIFY_TO || '').split(',')[0].trim();
+  return t || process.env.NOTIFY_FROM;
+}
+
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"]/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -36,9 +95,9 @@ async function sendMail(key, from, to, subject, html, text) {
       'api-key': key
     },
     body: JSON.stringify({
-      sender: { email: from, name: 'For Tracey' },
+      sender: { email: from, name: W.title },
       to: to,
-      replyTo: { email: from },
+      replyTo: { email: replyAddress() },
       subject: subject,
       htmlContent: html,
       textContent: text
@@ -52,6 +111,7 @@ async function sendMail(key, from, to, subject, html, text) {
 }
 
 export default async (request) => {
+  W = await wording();
   // The health check pings this endpoint daily. Without a way to look
   // without sending, that ping would email every volunteer every
   // afternoon. ?dry=1 reports what would go out and sends nothing.
@@ -147,7 +207,7 @@ export default async (request) => {
         ? (n.pickup && n.dropoff
             ? end(n.pickup, null) + ' &rarr; ' + end(n.dropoff, n.pickup)
             : (n.pickup ? 'Collect from ' + end(n.pickup, null)
-                        : 'Taking her to ' + end(n.dropoff, null)))
+                        : 'Taking ' + W.obj + ' to ' + end(n.dropoff, null)))
         : (n.location ? end(n.location, null) : '');
 
       return `<li style="margin-bottom:10px">
@@ -206,7 +266,7 @@ export default async (request) => {
       ? open.map(n =>
           `<li style="margin-bottom:7px"><strong>${esc(n.title)}</strong> \u00b7 ${esc(when(n))}${n.location ? '<br><span style="color:#6E6558">' + esc(n.location) + '</span>' : ''}`
           + (n.other_half_covered
-              ? `<br><span style="color:#A85C32;font-weight:600">The other half of this trip is covered \u2014 she would be stranded</span>`
+              ? `<br><span style="color:#A85C32;font-weight:600">The other half of this trip is covered \u2014 ${esc(W.name)} would be stranded</span>`
               : '')
           + `</li>`
         ).join('')
@@ -237,7 +297,7 @@ export default async (request) => {
       + (open.length
           ? `STILL UNCOVERED (${open.length}):\n`
             + open.map(n => `- ${n.title} · ${when(n)}`
-                + (n.other_half_covered ? '  [other half covered — she would be stranded]' : '')
+                + (n.other_half_covered ? '  [other half covered — ' + W.name + ' would be stranded]' : '')
               ).join('\n') + '\n\n'
           : 'Everything tomorrow is covered.\n\n')
       + (claimed.length
