@@ -122,6 +122,32 @@
   .body pre code{background:none;border:none;padding:0;font-size:inherit}
   .body del{color:var(--text-muted)}
   .body ul ul,.body ol ol,.body ul ol,.body ol ul{margin:6px 0 0}
+  /* Posts that came from a Word file. Every rule is scoped to .w, so
+     posts written any other way look exactly as they always have.
+
+     Paragraphs sit tight, the way they do in Word; an empty paragraph is
+     one line of space, because that is what she put there. */
+  .body .w{margin:0}
+  .body p.w{margin:0;line-height:1.6}
+  .body p.w.gap{line-height:1.6}
+  .body h2.w,.body h3.w,.body h4.w{margin:14px 0 6px}
+  .body h2.w:first-child,.body h3.w:first-child,.body h4.w:first-child{margin-top:0}
+  .body ul.w,.body ol.w{margin:0;padding-left:1.5em}
+  .body ul.w ul.w,.body ol.w ol.w,.body ul.w ol.w,.body ol.w ul.w{margin:0}
+  /* List items as tight as Word's; the journal's own lists are airier. */
+  .body ul.w > li,.body ol.w > li{margin:0;line-height:1.6}
+  .body .jc-center{text-align:center}
+  .body .jc-right{text-align:right}
+  .body .fl{text-indent:1.5em}
+  .body .in-1{padding-left:1.5em} .body .in-2{padding-left:3em}
+  .body .in-3{padding-left:4.5em} .body .in-4{padding-left:6em}
+  .body .in-5{padding-left:7.5em} .body .in-6{padding-left:9em}
+  .body .in-7{padding-left:10.5em} .body .in-8{padding-left:12em}
+  /* A tab in the middle of a line: a fixed gap. Word would line these
+     up into columns; a phone cannot promise columns at every width. */
+  .body .tab{display:inline-block;width:2em}
+  .body .w + .tablewrap,.body .tablewrap + .w{margin-top:8px}
+
   .body .task{list-style:none;margin-left:-20px}
   .body .task .box{display:inline-block;width:1.05em;margin-right:.4em;
     color:var(--sage);font-weight:700}
@@ -257,6 +283,48 @@
     e.preventDefault();
     showPhoto(a.getAttribute('data-full'), a.getAttribute('data-cap') || '');
   });
+
+
+  // A post made from a Word file arrives as HTML, built on the server
+  // from escaped text and a short list of our own classes. It is cleaned
+  // again here anyway: this is the one place stored HTML reaches the
+  // page, and it should not depend on the server having been right.
+  //
+  // Only these tags survive, only these classes, and only web links.
+  // Everything else is dropped — attributes, styles, scripts, handlers.
+  var DOC_TAGS = { p:1, h2:1, h3:1, h4:1, ul:1, ol:1, li:1, strong:1, em:1,
+                   u:1, s:1, br:1, span:1, a:1, div:1, table:1, tbody:1,
+                   tr:1, td:1 };
+  var DOC_CLASS = /^(w|gap|jc-center|jc-right|in-[1-8]|fl|tab|tablewrap)$/;
+
+  function cleanDocHtml(html) {
+    return String(html).split(/(<[^>]*>)/).map(function (part) {
+      if (part.charAt(0) !== '<') return part.replace(/[<>]/g, '');
+      var m = part.match(/^<(\/?)([a-z0-9]+)\b([^>]*)>$/i);
+      if (!m) return '';
+      var tag = m[2].toLowerCase();
+      if (!DOC_TAGS[tag]) return '';
+      if (m[1]) return '</' + tag + '>';
+
+      var out = '<' + tag;
+      var cls = (m[3].match(/\sclass="([^"]*)"/) || [])[1];
+      if (cls) {
+        var keep = cls.split(/\s+/).filter(function (c) { return DOC_CLASS.test(c); });
+        if (keep.length) out += ' class="' + keep.join(' ') + '"';
+      }
+      if (tag === 'a') {
+        var href = (m[3].match(/\shref="([^"]*)"/) || [])[1] || '';
+        if (/^https?:\/\/[^\s"'<>]+$/i.test(href)) out += ' href="' + href + '" rel="noopener"';
+      }
+      return out + '>';
+    }).join('');
+  }
+
+  function renderBody(body) {
+    var b = String(body || '');
+    if (/^<!--docx-->/.test(b)) return cleanDocHtml(b.replace(/^<!--docx-->\s*/, ''));
+    return markdown(b);
+  }
 
   function markdown(src) {
     var lines = String(src || '').replace(/\r\n/g, '\n').split('\n');
@@ -455,13 +523,47 @@
     return out.join('\n');
   }
 
+
+  // Names and wording from settings, so a clone reads as its own. The
+  // same rule as the signup page: a sentence's subject is the name, and
+  // pronouns only appear as her/his/their and her/him/them.
+  var SET = {};
+  function word(key, fallback) {
+    var v = SET[key];
+    return (v && String(v).trim()) ? String(v).trim() : fallback;
+  }
+  function NAME() { return word('person_name', 'Tracey'); }
+  function HER() {
+    var p = word('pronoun', 'she');
+    return p === 'he' ? 'his' : p === 'they' ? 'their' : 'her';
+  }
+  function OBJ() {
+    var p = word('pronoun', 'she');
+    return p === 'he' ? 'him' : p === 'they' ? 'them' : 'her';
+  }
+  function cap(t) { return t.charAt(0).toUpperCase() + t.slice(1); }
+
+  async function loadWording() {
+    try {
+      var r = await db.rpc('public_settings');
+      if (!r.error && r.data) SET = r.data;
+    } catch (e) {}
+    APPROVER = word('approver_name', APPROVER);
+    var title = word('journal_title', NAME() + '\u2019s journey');
+    var h1 = document.querySelector('h1');
+    if (h1) h1.textContent = title;
+    document.title = title;
+    var appTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+    if (appTitle) appTitle.setAttribute('content', word('page_title', 'For ' + NAME()));
+  }
+
   // ---------- render ----------
   function notSignedIn() {
     sub.textContent = '';
     content.className = '';
     content.innerHTML = '<div class="gate"><h2>Sign in on the main page first</h2>'
       + '<p>Open the signup page and add your name and email. Once you are approved, '
-      + 'her updates appear here.</p>'
+      + esc(HER()) + ' updates appear here.</p>'
       + '<a class="btn" href="/">Go to the signup page</a></div>';
   }
 
@@ -470,8 +572,8 @@
     content.className = '';
     content.innerHTML = '<div class="gate"><h2>Not yet</h2>'
       + '<p>' + (requested
-          ? 'Your request is with ' + esc(APPROVER) + '. Once it is approved, her updates appear here.'
-          : 'Reading Tracey\u2019s updates needs approval first. You can ask from the signup page.')
+          ? 'Your request is with ' + esc(APPROVER) + '. Once it is approved, ' + esc(HER()) + ' updates appear here.'
+          : 'Reading ' + esc(NAME()) + '\u2019s updates needs approval first. You can ask from the signup page.')
       + '</p><a class="btn" href="/">Back to the signup page</a></div>';
   }
 
@@ -480,11 +582,15 @@
     if (!posts.length) {
       sub.textContent = '';
       content.innerHTML = '<div class="status">Nothing here yet. '
-        + 'When Tracey writes something, it will appear on this page.</div>';
+        + 'When ' + esc(NAME()) + ' writes something, it will appear on this page.</div>';
       return;
     }
-    sub.textContent = 'Her own words, newest first. '
-      + 'Please keep what she writes here between you and her.';
+    // The stored default says "Her"; if nobody has changed it, let it follow
+    // the pronoun rather than contradict it.
+    var intro = word('journal_intro', '');
+    if (!intro || intro === 'Her own words, newest first.') intro = cap(HER()) + ' own words, newest first.';
+    sub.textContent = intro + ' '
+      + 'Please keep what ' + NAME() + ' writes here between you and ' + OBJ() + '.';
     content.innerHTML = posts.map(function (p) {
       // Photographs she attached. Shown, not linked — the address behind
       // each one is checked the same way the page is, so it is worth
@@ -532,13 +638,14 @@
       return '<div class="post">'
         + '<h2>' + esc(p.title) + '</h2>'
         + '<p class="when">' + fmtWhen(p.published) + '</p>'
-        + '<div class="body">' + markdown(p.body) + '</div>'
+        + '<div class="body">' + renderBody(p.body) + '</div>'
         + (shots ? '<div class="shots">' + shots + '</div>' : '')
         + '</div>';
     }).join('');
   }
 
   async function load() {
+    if (!SET.person_name) await loadWording();
     if (!me || !me.email) { notSignedIn(); return; }
 
     var acc = null;
@@ -566,7 +673,7 @@
     } catch (e) {}
     if (r.error) {
       content.className = 'status';
-      content.textContent = 'Could not load her updates just now. Please try again shortly.';
+      content.textContent = 'Could not load ' + HER() + ' updates just now. Please try again shortly.';
       return;
     }
     showPosts(r.data || []);
