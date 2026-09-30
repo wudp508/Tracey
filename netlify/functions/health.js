@@ -11,6 +11,52 @@
 
 const CHECKS = [];
 
+// ---------- the words, from settings ----------
+//
+// Who the page is for and what it is called, so a clone's emails read as
+// its own. Read once and kept for a minute: a change in Settings reaches
+// the next emails quickly, without a database call for every message.
+//
+// The same rule as the pages: a sentence's subject is the name, so
+// "they" never needs a verb to change; pronouns only appear as
+// her/his/their and her/him/them.
+let WORDS = null, WORDS_AT = 0;
+async function wording() {
+  if (WORDS && Date.now() - WORDS_AT < 60000) return WORDS;
+  const { SUPABASE_URL, SUPABASE_KEY } = process.env;
+  let s = {};
+  if (SUPABASE_URL && SUPABASE_KEY) {
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/public_settings`, {
+        method: 'POST',
+        // Never let the wording hold anything up. The health check runs
+        // this first, and a check that hangs is worse than one that fails.
+        signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined,
+        headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY,
+                   'Authorization': `Bearer ${SUPABASE_KEY}` },
+        body: '{}'
+      });
+      if (r.ok) s = JSON.parse(await r.text()) || {};
+    } catch (e) { /* the defaults below are a perfectly good email */ }
+  }
+  const pick = (k, d) => (s[k] && String(s[k]).trim()) || d;
+  const name = pick('person_name', 'Tracey');
+  const p = pick('pronoun', 'she');
+  WORDS = {
+    name,
+    title: pick('page_title', 'For ' + name),
+    journal: pick('journal_title', name + '\u2019s journey'),
+    her: p === 'he' ? 'his' : p === 'they' ? 'their' : 'her',
+    obj: p === 'he' ? 'him' : p === 'they' ? 'them' : 'her'
+  };
+  WORDS_AT = Date.now();
+  return WORDS;
+}
+
+// Filled in at the start of each run, so the helpers below can use it.
+let W = { name: 'Tracey', title: 'For Tracey', journal: 'Tracey\u2019s journey',
+          her: 'her', obj: 'her' };
+
 function record(name, ok, detail) {
   CHECKS.push({ name, ok, detail: detail || '' });
 }
@@ -35,6 +81,7 @@ async function checkEndpoint(base, path, expected) {
 }
 
 export default async () => {
+  W = await wording();
   CHECKS.length = 0;
 
   const {
@@ -222,7 +269,7 @@ export default async () => {
           'api-key': BREVO_API_KEY
         },
         body: JSON.stringify({
-          sender: { email: NOTIFY_FROM, name: 'For Tracey' },
+          sender: { email: NOTIFY_FROM, name: W.title },
           to: alertTo.split(',').map(e => e.trim()).filter(Boolean).map(e => ({ email: e })),
           subject: `Signup page: ${failures.length} thing${failures.length === 1 ? '' : 's'} to look at`,
           htmlContent: html,
