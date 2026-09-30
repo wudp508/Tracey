@@ -274,18 +274,30 @@ function extractCategory(title, description) {
   const tagged = tagCategory(hay);
   if (tagged) return tagged;
   // Fall back to plain-language hints in the title and description.
-  // Order matters: Izzy beats walks, so "walk Izzy" is dog help.
   const t = `${title || ''} ${description || ''}`.toLowerCase();
 
-  if (/\b(izzy|dog|puppy|leash|kennel|vet)\b/.test(t)) return 'izzy';
+  // A chip's current name wins: a family who renamed the second chip to
+  // Meals means "Meals for Tuesday" to go there.
+  for (const [label, key] of Object.entries(LABELS)) {
+    if (new RegExp('\\b' + label + '\\b').test(t)) return key;
+  }
+
+  // The built-in hint words below were written for Tracey's four chips —
+  // a dog, walks, rides. They only apply while a chip still means that.
+  // Once somebody renames one, its old hints stop pointing at it, or
+  // "take the dog to the vet" would land under Meals.
+  const renamed = new Set(Object.values(LABELS));
+
+  // Order matters: the dog beats walks, so "walk Izzy" is dog help.
+  if (!renamed.has('izzy') && /\b(izzy|dog|puppy|leash|kennel|vet)\b/.test(t)) return 'izzy';
 
   if (/\bgrocer|\berrand|\bpharmac|\bprescription\b|\bshop|\bstore\b|\bcostco\b|\btarget\b|\bbank\b|\bpost office\b|\blaundry\b|\bdishes\b|\bclean\b|\btidy\b|\byard\b|\blawn\b|\bchores?\b/.test(t))
     return 'other';
 
-  if (/\bwalk\b|\bstroll\b|\bexercise\b|\bstretch\b/.test(t)) return 'walks';
+  if (!renamed.has('walks') && /\bwalk\b|\bstroll\b|\bexercise\b|\bstretch\b/.test(t)) return 'walks';
 
-  if (/\b(rehab|physical therapy|doctor|dr\.|clinic|hospital|medical|appointment|infusion|lab|x-ray|imaging|dentist|specialist)\b/.test(t)
-      || /\b(ride|drive|driving|transport|pick ?up|drop ?off)\b/.test(t))
+  if (!renamed.has('rides') && /\b(rehab|physical therapy|doctor|dr\.|clinic|hospital|medical|appointment|infusion|lab|x-ray|imaging|dentist|specialist)\b/.test(t)
+      || !renamed.has('rides') && /\b(ride|drive|driving|transport|pick ?up|drop ?off)\b/.test(t))
     return 'rides';
 
   return 'other';
