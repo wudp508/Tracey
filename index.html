@@ -1301,7 +1301,11 @@
       // three days. This one is for someone who has decided, so they are
       // left alone. The button at the foot of the page stays for anyone
       // who changes their mind.
-      +   '<button class="never" data-action="neveradd">Don\u2019t ask again</button></span>'
+      // Worded for both people it serves: someone who has decided against
+      // it, and someone who already has the icon but arrived from an email
+      // link — which on an iPhone always opens in Safari, where the page
+      // can't see the icon.
+      +   '<button class="never" data-action="neveradd">Already have it? Don\u2019t ask again</button></span>'
       + '<button class="x" data-action="hideadd" aria-label="Dismiss">\u00d7</button>'
       + '</div>';
   }
