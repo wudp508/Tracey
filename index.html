@@ -372,6 +372,9 @@
     cursor:pointer;padding:8px;-webkit-tap-highlight-color:transparent}
   .footline button:active{color:var(--text)}
   .footline .dot{color:var(--text-muted);margin:0 2px}
+  .addhome .tx .never{display:inline-block;margin-top:6px;padding:0;background:none;border:none;
+    font-family:inherit;font-size:.76rem;color:var(--text-muted);text-decoration:underline;
+    text-underline-offset:2px;cursor:pointer}
   .ask textarea{width:100%;font-family:inherit;font-size:16px;padding:11px 13px;
     border:1px solid var(--border);border-radius:8px;background:#fff;
     color:var(--text);min-height:110px;resize:vertical;margin-bottom:4px}
@@ -1160,12 +1163,17 @@
       bg.innerHTML = '<div class="ask">'
         + '<h3>Add it to your home screen</h3>'
         + '<div class="howto"><ol>'
-        +   '<li>Tap the <strong>Share</strong> button at the bottom of Safari '
-        +     '\u2014 a square with an arrow pointing up.</li>'
-        +   '<li>Scroll down the list and tap <strong>Add to Home Screen</strong>.</li>'
-        +   '<li>Tap <strong>Add</strong>.</li>'
-        + '</ol><p style="margin:14px 0 0">It will sit with your apps, and open '
-        + 'straight to this page.</p></div>'
+        + (isAndroid()
+            ? '<li>Tap the <strong>\u22ee</strong> menu at the top right of Chrome.</li>'
+              + '<li>Tap <strong>Add to home screen</strong> \u2014 or <strong>Install app</strong>, '
+              +   'if that\u2019s what it says.</li>'
+              + '<li>Tap <strong>Add</strong> or <strong>Install</strong>.</li>'
+            : '<li>Tap <strong>Share</strong> \u2014 a square with an arrow pointing up. '
+              +   'It\u2019s at the bottom of Safari, or inside the <strong>\u22ef</strong> menu.</li>'
+              + '<li>Scroll down and tap <strong>Add to Home Screen</strong>.</li>'
+              + '<li>Tap <strong>Add</strong>.</li>')
+        + '</ol><p style="margin:14px 0 0">It will sit with your apps, open '
+        + 'straight to this page, and keep you signed in.</p></div>'
         + '<div class="acts" style="margin-top:18px">'
         +   '<button class="yes" data-close="1">Got it</button>'
         + '</div></div>';
@@ -1221,8 +1229,47 @@
   // dialog. Safari does not and never has, so on an iPhone the only
   // route is Share then Add to Home Screen \u2014 which most people have
   // never noticed. Showing them where it is is the whole value here.
+  // Android shows the card too. Chrome only offers its one-tap install to
+  // sites with a service worker, which this one doesn't have — but its own
+  // menu can still add the icon, so the card explains where.
+  function isAndroid() { return /Android/i.test(navigator.userAgent); }
+
+  // "Not now": hidden for three days.
+  function snoozeAdd() {
+    hideAdd = true;
+    addState = { at: Date.now() };
+    try {
+      localStorage.setItem('tracey_add_card', JSON.stringify(addState));
+      localStorage.removeItem('tracey_hide_add');
+    } catch (err) {}
+  }
+
+  // "Don't ask again": hidden for good.
+  function neverAdd() {
+    hideAdd = true;
+    addState = { at: Date.now(), never: true };
+    try {
+      localStorage.setItem('tracey_add_card', JSON.stringify(addState));
+      localStorage.removeItem('tracey_hide_add');
+    } catch (err) {}
+  }
+
+  // Android's one-tap install when Chrome offers it; otherwise directions.
+  async function addHome() {
+    if (installEvt) {
+      installEvt.prompt();
+      try {
+        var choice = await installEvt.userChoice;
+        if (choice && choice.outcome === 'accepted') hideAdd = true;
+      } catch (err) {}
+      installEvt = null;
+      return;
+    }
+    await showHowTo();
+  }
+
   function canAddHome() {
-    return !alreadyInstalled() && (isApple() || !!installEvt);
+    return !alreadyInstalled() && (isApple() || isAndroid() || !!installEvt);
   }
 
   function alreadyInstalled() {
@@ -1239,7 +1286,7 @@
 
   function addHomeCard() {
     if (hideAdd || alreadyInstalled()) return '';
-    if (!isApple() && !installEvt) return '';   // nothing useful to offer
+    if (!canAddHome()) return '';   // nothing useful to offer
 
     return '<div class="addhome" data-action="addhome">'
       + '<span class="ic">'
@@ -1249,7 +1296,12 @@
       +   '<line x1="12" y1="8" x2="12" y2="14"/><line x1="9" y1="11" x2="15" y2="11"/>'
       +   '</svg></span>'
       + '<span class="tx"><strong>Keep this on your home screen</strong>'
-      +   '<span>One tap to see what ' + esc(NAME()) + ' needs.</span></span>'
+      +   '<span>One tap to see what ' + esc(NAME()) + ' needs, and you stay signed in.</span>'
+      // Two ways to say no. The \u00d7 is "not now", and it comes back in
+      // three days. This one is for someone who has decided, so they are
+      // left alone. The button at the foot of the page stays for anyone
+      // who changes their mind.
+      +   '<button class="never" data-action="neveradd">Don\u2019t ask again</button></span>'
       + '<button class="x" data-action="hideadd" aria-label="Dismiss">\u00d7</button>'
       + '</div>';
   }
@@ -2298,18 +2350,18 @@
     render();
   });
 
-  // Dismissing the card hides it for two weeks; dismissing it a second time
-  // hides it for good. One more nudge at a sensible interval for anyone who
-  // said "not now" and meant it, then it stays out of the way.
+  // Dismissing the card hides it for three days, then it comes back, until
+  // the friend is using the icon. The icon is how they stay signed in and
+  // see changes quickly, so it's worth asking again.
   //
-  // The older version kept only a plain "dismissed" flag. Those count as one
-  // dismissal long enough ago that the card comes back once.
+  // The older version kept only a plain "dismissed" flag. Those count as a
+  // dismissal long enough ago that the card shows again now.
   var addState = null;
   try {
     addState = JSON.parse(localStorage.getItem('tracey_add_card') || 'null');
     if (!addState && localStorage.getItem('tracey_hide_add') === '1') addState = { times: 1, at: 0 };
   } catch (e) { addState = null; }
-  if (addState && (addState.times >= 2 || Date.now() - addState.at < 14 * 86400000)) hideAdd = true;
+  if (addState && (addState.never || Date.now() - addState.at < 3 * 86400000)) hideAdd = true;
 
   // Searching and collapsing, wired once rather than on every render.
   //
@@ -2567,6 +2619,20 @@
             }
           } catch (e) {}
         }
+
+        // Right after saying yes is when the icon is most worth having:
+        // it keeps them signed in and opens straight to what they've taken
+        // on. Asked only when the card itself would be showing, so it never
+        // adds to how often anyone is asked — and "Not now" counts as
+        // dismissing the card.
+        if (canAddHome() && !hideAdd) {
+          var wantIcon = await askYesNo(
+            'Keep this on your home screen?',
+            'It keeps you signed in, and opens straight to what you have taken on.',
+            'Show me how', 'Not now');
+          if (wantIcon) await addHome();
+          else snoozeAdd();
+        }
       }
       else { notice = 'Someone else just took that one. Here is the updated list.'; }
       await loadNeeds(); return;
@@ -2628,32 +2694,21 @@
 
     if (a === 'hideadd') {
       e.stopPropagation();
-      hideAdd = true;
-      addState = { times: (addState ? addState.times : 0) + 1, at: Date.now() };
-      try {
-        localStorage.setItem('tracey_add_card', JSON.stringify(addState));
-        localStorage.removeItem('tracey_hide_add');
-      } catch (err) {}
+      snoozeAdd();
+      render();
+      return;
+    }
+
+    if (a === 'neveradd') {
+      e.stopPropagation();
+      neverAdd();
       render();
       return;
     }
 
     if (a === 'addhome') {
-      // Android: the browser will show its own dialog.
-      if (installEvt) {
-        installEvt.prompt();
-        try {
-          var choice = await installEvt.userChoice;
-          if (choice && choice.outcome === 'accepted') hideAdd = true;
-        } catch (err) {}
-        installEvt = null;
-        render();
-        return;
-      }
-
-      // iPhone and iPad: there is no dialog to ask for. Show where the
-      // option actually lives, since almost nobody has found it.
-      await showHowTo();
+      await addHome();
+      render();
       return;
     }
 
