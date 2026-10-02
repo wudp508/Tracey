@@ -127,6 +127,75 @@ export default async (request) => {
   const open = data.open || [];
   const site = (SITE_URL || '').replace(/\/+$/, '');
 
+  // ---------- a message to everyone ----------
+  //
+  // Not the list of what's open: something a coordinator wants every
+  // friend to hear — a change of plan, news, a thank-you. Sent one at a
+  // time, like the nudge, so nobody sees anyone else's address.
+  if (body.mode === 'message') {
+    const json = (o, status) => new Response(JSON.stringify(o), {
+      status: status || 200, headers: { 'Content-Type': 'application/json' } });
+
+    const subject = String(body.subject || '').trim().slice(0, 150);
+    const message = String(body.message || '').trim().slice(0, 5000);
+    if (!subject || !message) return json({ error: 'a subject and a message are both needed' }, 400);
+    if (!people.length) return json({ sent: 0, reason: 'nobody registered' });
+
+    // Brevo's free plan allows 300 emails a day, shared by every site
+    // that uses the account. One message should never use the day up and
+    // leave the calendar invitations with nothing.
+    if (people.length > 250) {
+      return json({ error: 'more than 250 friends — too many to send in one go on the free plan' }, 400);
+    }
+    if (dryRun) return json({ dry_run: true, would_send_to: people.length });
+
+    // Her paragraphs as she wrote them. Escaped first, so whatever is
+    // typed arrives as words, never as anything an email would run.
+    const paras = message.split(/\n\s*\n/).map(t =>
+      '<p style="margin:0 0 14px">' + esc(t.trim()).replace(/\n/g, '<br>') + '</p>').join('');
+
+    let sent = 0;
+    const failed = [];
+
+    for (const p of people) {
+      const first = String(p.name || '').trim().split(/\s+/)[0] || 'there';
+      const html = `
+        <div style="font-family:-apple-system,Segoe UI,sans-serif;font-size:15px;
+                    line-height:1.6;color:#2B2321;max-width:480px">
+          <p style="margin:0 0 14px">Hi ${esc(first)},</p>
+          ${paras}
+          ${site ? `<p style="margin:20px 0 0"><a href="${site}" style="color:#3D5A5B;font-weight:600">Open the signup page</a></p>` : ''}
+          <p style="margin:16px 0 0;color:#6E6558;font-size:13px">
+            You're getting this because you signed up to help ${esc(W.name)}.</p>
+        </div>`;
+
+      try {
+        const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'accept': 'application/json',
+                     'api-key': BREVO_API_KEY },
+          body: JSON.stringify({
+            sender: { email: NOTIFY_FROM, name: W.title },
+            to: [{ email: p.email, name: p.name || undefined }],
+            replyTo: { email: replyAddress() },
+            subject: subject,
+            htmlContent: html,
+            textContent: `Hi ${first},\n\n${message}\n\n${site}\n\n`
+              + `You're getting this because you signed up to help ${W.name}.`
+          })
+        });
+        if (res.ok) sent++;
+        else { failed.push(p.email); console.error('Message failed for', p.email, res.status); }
+      } catch (e) {
+        failed.push(p.email);
+        console.error('Message threw for', p.email, e);
+      }
+    }
+
+    console.log(`Message to everyone: ${sent} sent, ${failed.length} failed`);
+    return json({ sent, failed });
+  }
+
   if (!open.length) {
     return new Response(JSON.stringify({
       sent: 0, reason: 'nothing is open, so there is nothing to ask for'
