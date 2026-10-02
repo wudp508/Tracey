@@ -89,6 +89,9 @@
     color:var(--text-muted);cursor:pointer;font-family:inherit}
   .postbtns button.on{background:var(--text);border-color:var(--text);color:#fff}
   .postbtns button.danger{color:var(--rose);border-color:var(--rose)}
+  .signout{text-align:center;padding:28px 0 6px;border-top:1px solid var(--border);margin-top:26px}
+  .signout button{font-family:inherit;font-size:.82rem;font-weight:500;background:transparent;
+    border:none;color:var(--text-muted);cursor:pointer;padding:8px}
   .pics{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 2px}
   .pics figure{margin:0;position:relative}
   .pics img{height:64px;width:64px;object-fit:cover;border-radius:8px;
@@ -161,7 +164,9 @@
   var showReq = false;
   var shutWeek = {};   // weeks she has folded away
 
-  try { pass = sessionStorage.getItem('tracey_pass') || null; } catch (e) {}
+  // Remembered on this device until she taps Sign out, so reopening the
+  // app doesn't ask for it every time.
+  try { pass = localStorage.getItem('tracey_pass') || null; } catch (e) {}
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
@@ -195,7 +200,7 @@
       var v = (input.value || '').trim();
       if (!v) return;
       pass = v;
-      try { sessionStorage.setItem('tracey_pass', v); } catch (e) {}
+      try { localStorage.setItem('tracey_pass', v); } catch (e) {}
       load();
     }
     document.getElementById('go').addEventListener('click', submit);
@@ -496,7 +501,8 @@
       + '<div class="section-sub">Yours to decide. Nobody is told which level they are on.</div>'
       + pendingHtml
       + '<div class="section-title">Reading your updates</div>'
-      + readersHtml;
+      + readersHtml
+      + '<div class="signout"><button data-act="signout">Sign out of this page</button></div>';
   }
 
   // ---------- actions ----------
@@ -519,6 +525,12 @@
     var el = e.target.closest('[data-act]');
     if (!el) return;
     var act = el.getAttribute('data-act');
+
+    if (act === 'signout') {
+      try { localStorage.removeItem('tracey_pass'); } catch (e) {}
+      pass = null; err = '';
+      gate(); return;
+    }
 
     if (act === 'setvis') {
       el.disabled = true;
@@ -643,7 +655,7 @@
     var r = await db.rpc('tracey_view', { p_pass: pass });
     if (r.error) {
       pass = null;
-      try { sessionStorage.removeItem('tracey_pass'); } catch (e) {}
+      try { localStorage.removeItem('tracey_pass'); } catch (e) {}
       err = 'That passphrase did not work.';
       gate();
       return;
