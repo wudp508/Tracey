@@ -371,6 +371,7 @@
     background:transparent;border:none;color:var(--text-muted);
     cursor:pointer;padding:8px;-webkit-tap-highlight-color:transparent}
   .footline button:active{color:var(--text)}
+  .footline .dot{color:var(--text-muted);margin:0 2px}
   .ask textarea{width:100%;font-family:inherit;font-size:16px;padding:11px 13px;
     border:1px solid var(--border);border-radius:8px;background:#fff;
     color:var(--text);min-height:110px;resize:vertical;margin-bottom:4px}
@@ -522,6 +523,8 @@
   var showHelp = false;
   var showPast = false;   // coordinator view: include finished needs
   var showReq = false;    // the ask-for-something form
+  var showMsg = false;    // the message-everyone form
+  var gateMode = null;    // 'back' or 'full' once someone chooses; otherwise decided for them
   var find = '';          // coordinator search
   var shut = {};          // sections the coordinator has collapsed
   var showAll = false;    // friend view: beyond the next fortnight
@@ -531,6 +534,15 @@
   var hideAdd = false;
   var lastLoaded = 0;     // when the list was last fetched
   var coord = false, pass = '', copiedKey = null, notice = '', busy = null, poll = null;
+
+  // The coordinator passphrase is remembered on this device until someone
+  // taps Sign out. It used to be forgotten after every visit, so the panel
+  // asked for it every time — on a phone you carry, that's the wrong way
+  // round. Each site's memory is its own, so Susan's never sees Tracey's.
+  try { pass = localStorage.getItem('coord_pass') || ''; } catch (e) { pass = ''; }
+  function rememberPass(v) {
+    try { if (v) localStorage.setItem('coord_pass', v); else localStorage.removeItem('coord_pass'); } catch (e) {}
+  }
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
@@ -631,7 +643,7 @@
       try {
         var t = await db.rpc('tracey_view', { p_pass: pass });
         if (!t.error) {
-          try { sessionStorage.setItem('tracey_pass', pass); } catch (e) {}
+          try { localStorage.setItem('tracey_pass', pass); } catch (e) {}
           window.location.href = '/mine';
           return;
         }
@@ -640,8 +652,9 @@
       coordData = null;
       notice = 'That passphrase was not accepted.';
       pass = '';
+      rememberPass('');
     }
-    else { coordData = r.data; notice = ''; }
+    else { coordData = r.data; notice = ''; rememberPass(pass); }
     render();
   }
 
@@ -698,10 +711,32 @@
     ].join('\n');
   }
 
+  // Someone opening the home-screen icon for the first time is usually not
+  // new at all: the icon simply can't see what Safari remembered. So there
+  // it asks only for an email, and the full form is one tap away.
   function gate(){
+    var back = gateMode ? gateMode === 'back' : alreadyInstalled();
+    return back ? backGate() : fullGate();
+  }
+
+  function backGate(){
+    return '<div class="gate"><h2>Welcome back</h2>'
+      + '<p>Signed up before \u2014 in Safari, or on another phone? Your email is all it takes, '
+      + 'and everything you signed up for comes back.</p>'
+      + '<label for="r-back">Email</label>'
+      + '<input type="email" id="r-back" autocomplete="email" inputmode="email" autocapitalize="none" />'
+      + '<div class="field-err" id="e-back"></div>'
+      + '<button class="btn primary" data-action="welcomeback">Continue</button>'
+      + '<p class="hint" style="margin-top:16px">New here? '
+      +   '<button class="btn link" data-action="gatefull">Add yourself</button></p>'
+      + '</div>';
+  }
+
+  function fullGate(){
     return '<div class="gate"><h2>Add yourself first</h2>'
       + '<p>We need your email so we can send you the calendar invitation when you sign up for something. '
       + 'That way you get reminders, and if a time changes your calendar updates on its own — no texts needed.</p>'
+      + '<p class="hint">Signed up before? <button class="btn link" data-action="gateback">Just your email</button></p>'
       + '<div class="field-row">'
       +   '<div class="field-half">'
       +     '<label for="r-first">First name <span class="req">required</span></label>'
@@ -719,9 +754,8 @@
       + '<div class="field-err" id="e-email"></div>'
       + '<label for="r-phone">Phone <span class="opt">optional</span></label>'
       + '<input type="tel" id="r-phone" autocomplete="tel" inputmode="tel" />'
-      + '<p class="hint">Other friends only see your first name. The rest is so ' + esc(NAME()) + ' and the coordinators know exactly who is coming.</p>'
-      + '<p class="hint">Been here before? Enter the same email and everything you have signed up for comes straight back.</p>'
-      + '<p class="hint">Only ' + esc(NAME()) + ' and the coordinators see your contact details. Other friends just see your first name next to what you have signed up for.</p>'
+      + '<p class="hint">Only ' + esc(NAME()) + ' and the coordinators see your email and phone. '
+      +   'Other friends see your name next to what you have signed up for.</p>'
       + '<div class="err" id="r-err" style="display:none"></div>'
       + '<button class="btn primary" data-action="register">Continue</button></div>';
   }
@@ -1187,6 +1221,10 @@
   // dialog. Safari does not and never has, so on an iPhone the only
   // route is Share then Add to Home Screen \u2014 which most people have
   // never noticed. Showing them where it is is the whole value here.
+  function canAddHome() {
+    return !alreadyInstalled() && (isApple() || !!installEvt);
+  }
+
   function alreadyInstalled() {
     try {
       return window.matchMedia('(display-mode: standalone)').matches
@@ -1684,7 +1722,24 @@
         + (stillOpen
             ? '<button data-action="askall">Ask everyone</button>'
             : '')
-        + '</div>';
+        + '<button data-action="msgall">Message everyone</button>'
+        + '</div>'
+        // Anything a coordinator wants every friend to hear. Each gets
+        // their own copy, so nobody sees anyone else's address.
+        + (showMsg
+            ? '<div class="reqform">'
+              + '<label>Subject</label>'
+              + '<input type="text" id="m-subj" maxlength="150" placeholder="A change to next week" />'
+              + '<label>Message</label>'
+              + '<textarea id="m-body" rows="6" placeholder="Write it as you would to one friend. A blank line starts a new paragraph."></textarea>'
+              + '<p class="hint">Goes to all ' + ((coordData && coordData.volunteers) ? coordData.volunteers.length : 0)
+              +   ' registered friends, each separately. Replies come to you.</p>'
+              + '<div class="field-err" id="m-err"></div>'
+              + '<div class="postbtns">'
+              +   '<button class="btn primary small" data-action="msgsend">Send</button>'
+              +   '<button class="btn small" data-action="msgall">Cancel</button>'
+              + '</div></div>'
+            : '');
 
       // Something Tracey needs that is not an appointment. No time, no
       // invitation, no Outlook — it simply sits on the list until
@@ -1950,7 +2005,11 @@
                 + 'nobody is told which level they are on.',
               fVols.length ? fVols.map(tierRow).join('')
                 : '<div class="empty">Nobody matches.</div>',
-              fVols.length + '');
+              fVols.length + '')
+        // The passphrase is remembered on this device; this is how to
+        // make it forget, on a phone that isn't only yours.
+        + '<div class="footline"><button data-action="coordout">'
+        +   'Sign out of the coordinator panel</button></div>';
       return;
     }
 
@@ -2163,7 +2222,13 @@
       + (cov.length ? cov.map(row).join('') : '<div class="empty">Nothing covered yet.</div>')
       // Quiet, at the bottom, competing with nothing. Someone who needs
       // it will be looking for it.
-      + '<div class="footline"><button data-action="problem">'
+      + '<div class="footline">'
+      // Always here, unlike the card at the top, which can be dismissed:
+      // someone who said "not now" should still be able to find it.
+      +   (canAddHome()
+            ? '<button data-action="addhome">Add to Home Screen</button><span class="dot">\u00b7</span>'
+            : '')
+      +   '<button data-action="problem">'
       +   'Something not working?</button></div>';
   }
 
@@ -2233,7 +2298,18 @@
     render();
   });
 
-  try { hideAdd = localStorage.getItem('tracey_hide_add') === '1'; } catch (e) {}
+  // Dismissing the card hides it for two weeks; dismissing it a second time
+  // hides it for good. One more nudge at a sensible interval for anyone who
+  // said "not now" and meant it, then it stays out of the way.
+  //
+  // The older version kept only a plain "dismissed" flag. Those count as one
+  // dismissal long enough ago that the card comes back once.
+  var addState = null;
+  try {
+    addState = JSON.parse(localStorage.getItem('tracey_add_card') || 'null');
+    if (!addState && localStorage.getItem('tracey_hide_add') === '1') addState = { times: 1, at: 0 };
+  } catch (e) { addState = null; }
+  if (addState && (addState.times >= 2 || Date.now() - addState.at < 14 * 86400000)) hideAdd = true;
 
   // Searching and collapsing, wired once rather than on every render.
   //
@@ -2279,7 +2355,8 @@
 
   modeBtn.addEventListener('click', function(){
     coord = !coord; notice = '';
-    if (coord && !coordData) render(); else if (!coord) render(); else loadCoord();
+    if (coord && !coordData) { if (pass) loadCoord(); else render(); }
+    else if (!coord) render(); else loadCoord();
   });
 
   document.getElementById('root').addEventListener('click', async function(e){
@@ -2300,6 +2377,86 @@
       pass = (document.getElementById('c-pass').value || '').trim();
       if (!pass) return;
       await loadCoord(); return;
+    }
+
+    if (a === 'gateback') { gateMode = 'back'; render(); return; }
+    if (a === 'gatefull') { gateMode = 'full'; render(); return; }
+
+    if (a === 'welcomeback') {
+      var bEl = document.getElementById('r-back');
+      var bErr = document.getElementById('e-back');
+      var bEmail = (bEl.value || '').trim().toLowerCase();
+      bErr.textContent = '';
+      bEl.classList.remove('bad');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(bEmail)) {
+        bErr.textContent = 'That doesn\u2019t look like an email address.';
+        bEl.classList.add('bad');
+        return;
+      }
+      el.disabled = true;
+      var fv = null;
+      try {
+        var fr = await db.rpc('find_volunteer', { p_email: bEmail });
+        fv = (fr && !fr.error) ? fr.data : null;
+      } catch (err) { fv = null; }
+      el.disabled = false;
+      if (!fv || !fv.email) {
+        bErr.textContent = 'We couldn\u2019t find that email. Check it, or tap Add yourself.';
+        bEl.classList.add('bad');
+        return;
+      }
+      me = { name: fv.name || '', email: fv.email, phone: fv.phone || '' };
+      lsSet('tracey_me', me);
+      gateMode = null;
+      await loadNeeds(); return;
+    }
+
+    if (a === 'coordout') {
+      rememberPass('');
+      pass = ''; coordData = null; posts = null; fails = [];
+      coord = false; showMsg = false; notice = '';
+      render(); return;
+    }
+
+    if (a === 'msgall') { showMsg = !showMsg; render(); return; }
+
+    if (a === 'msgsend') {
+      var mSubj = (document.getElementById('m-subj').value || '').trim();
+      var mBody = (document.getElementById('m-body').value || '').trim();
+      var mErr = document.getElementById('m-err');
+      mErr.textContent = '';
+      if (!mSubj || !mBody) { mErr.textContent = 'A subject and a message are both needed.'; return; }
+
+      var howMany = (coordData && coordData.volunteers) ? coordData.volunteers.length : 0;
+      var go = await askYesNo(
+        'Send this to ' + howMany + (howMany === 1 ? ' friend?' : ' friends?'),
+        'Each gets their own copy, from ' + word('page_title', 'For ' + NAME())
+          + '. Replies come to you.',
+        'Send it', 'Not yet');
+      if (!go) return;
+
+      el.disabled = true;
+      el.textContent = 'Sending\u2026';
+      var mOut = null;
+      try {
+        var mRes = await fetch('/api/ask-everyone', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pass: pass, mode: 'message', subject: mSubj, message: mBody })
+        });
+        mOut = await mRes.json();
+      } catch (err) { mOut = null; }
+      el.disabled = false;
+      el.textContent = 'Send';
+
+      if (!mOut || mOut.error) {
+        mErr.textContent = (mOut && mOut.error) ? mOut.error : 'Could not send just now. Please try again.';
+        return;
+      }
+      showMsg = false;
+      notice = 'Sent to ' + mOut.sent + (mOut.sent === 1 ? ' friend' : ' friends')
+        + (mOut.failed && mOut.failed.length ? '. ' + mOut.failed.length + ' could not be sent.' : '.');
+      render(); return;
     }
 
     if (a === 'register') {
@@ -2472,7 +2629,11 @@
     if (a === 'hideadd') {
       e.stopPropagation();
       hideAdd = true;
-      try { localStorage.setItem('tracey_hide_add', '1'); } catch (err) {}
+      addState = { times: (addState ? addState.times : 0) + 1, at: Date.now() };
+      try {
+        localStorage.setItem('tracey_add_card', JSON.stringify(addState));
+        localStorage.removeItem('tracey_hide_add');
+      } catch (err) {}
       render();
       return;
     }
@@ -2747,7 +2908,7 @@
       // one rather than logging ourselves out mid-task.
       if (changedCoord) {
         pass = changedCoord;
-        try { sessionStorage.setItem('coord_pass', pass); } catch (e) {}
+        rememberPass(pass);
       }
 
       notice = 'Changed. Write it down somewhere.';
