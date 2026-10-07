@@ -433,6 +433,118 @@ function journalSenderAllowed(payload) {
   return { ok: true, who };
 }
 
+// ---------- telling her readers ----------
+//
+// When she posts, every reader who can see it gets an email with the title
+// and a link — never her words. The journal is shared on the understanding
+// it isn't passed around, so her writing stays on the page, where only
+// approved readers can open it.
+//
+// Readers can switch these off on the journal page. #quiet in the subject
+// skips them for one post. Close-circle posts only tell the close circle.
+//
+// Sent several at a time, so a long list finishes well within the time the
+// mail relay waits for an answer — a slow reply would make it send the
+// post again.
+
+let WORDS = null, WORDS_AT = 0;
+async function wording() {
+  if (WORDS && Date.now() - WORDS_AT < 60000) return WORDS;
+  const { SUPABASE_URL, SUPABASE_KEY } = process.env;
+  let s = {};
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/public_settings`, {
+      method: 'POST',
+      signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined,
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY,
+                 'Authorization': `Bearer ${SUPABASE_KEY}` },
+      body: '{}'
+    });
+    if (r.ok) s = JSON.parse(await r.text()) || {};
+  } catch (e) { /* the defaults are a perfectly good email */ }
+  const pick = (k, d) => (s[k] && String(s[k]).trim()) || d;
+  const name = pick('person_name', 'Tracey');
+  const p = pick('pronoun', 'she');
+  WORDS = { name, title: pick('page_title', 'For ' + name),
+            journal: pick('journal_title', name + '\u2019s journey'),
+            her: p === 'he' ? 'his' : p === 'they' ? 'their' : 'her' };
+  WORDS_AT = Date.now();
+  return WORDS;
+}
+
+function escMail(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+async function tellReaders({ title, visibility, sender }) {
+  const { SUPABASE_URL, SUPABASE_KEY, INGEST_TOKEN, BREVO_API_KEY,
+          NOTIFY_FROM, NOTIFY_TO, REPLY_TO, SITE_URL } = process.env;
+  if (!BREVO_API_KEY || !NOTIFY_FROM) return 0;
+
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/post_readers`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY,
+               'Authorization': `Bearer ${SUPABASE_KEY}` },
+    body: JSON.stringify({ p_token: INGEST_TOKEN, p_visibility: visibility })
+  });
+  if (!r.ok) {
+    console.error('Could not list readers:', r.status, (await r.text()).slice(0, 200));
+    return 0;
+  }
+  const who = String(sender || '').toLowerCase();
+  const readers = (JSON.parse(await r.text()) || [])
+    .filter(p => p && p.email && p.email.toLowerCase() !== who);   // not the person who posted it
+  if (!readers.length) return 0;
+
+  const W = await wording();
+  const link = (SITE_URL || '').replace(/\/+$/, '') + '/journal';
+  const reply = (REPLY_TO || (NOTIFY_TO || '').split(',')[0] || '').trim() || NOTIFY_FROM;
+  const forFew = visibility === 'close' ? ', just for a few close friends' : '';
+
+  let told = 0;
+  const one = async (p) => {
+    const first = String(p.name || '').trim().split(/\s+/)[0] || 'there';
+    const html = `
+      <div style="font-family:-apple-system,Segoe UI,sans-serif;font-size:15px;
+                  line-height:1.6;color:#2B2321;max-width:480px">
+        <p style="margin:0 0 14px">Hi ${escMail(first)},</p>
+        <p style="margin:0 0 10px">${escMail(W.name)} has updated ${W.her} journal${forFew}:</p>
+        <p style="margin:0 0 18px;font-size:17px;font-weight:600">${escMail(title)}</p>
+        <p style="margin:0 0 22px"><a href="${link}" style="display:inline-block;background:#3D5A5B;
+          color:#fff;font-weight:600;text-decoration:none;padding:11px 18px;border-radius:10px">Follow the story</a></p>
+        <p style="margin:0;color:#6E6558;font-size:13px">Rather not have these emails?
+          There's a switch at the bottom of the journal page.</p>
+      </div>`;
+    try {
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'accept': 'application/json',
+                   'api-key': BREVO_API_KEY },
+        body: JSON.stringify({
+          sender: { email: NOTIFY_FROM, name: W.title },
+          to: [{ email: p.email, name: p.name || undefined }],
+          replyTo: { email: reply },
+          subject: `${W.name} has updated ${W.her} journal`,
+          htmlContent: html,
+          textContent: `Hi ${first},\n\n${W.name} has updated ${W.her} journal${forFew}:\n\n`
+            + `${title}\n\nFollow the story: ${link}\n\n`
+            + `Rather not have these emails? There's a switch at the bottom of the journal page.`
+        })
+      });
+      if (res.ok) told++;
+      else console.error('Post email failed for', p.email, res.status);
+    } catch (e) {
+      console.error('Post email threw for', p.email, e);
+    }
+  };
+
+  for (let i = 0; i < readers.length; i += 8) {
+    await Promise.all(readers.slice(i, i + 8).map(one));
+  }
+  return told;
+}
+
 export default async (request) => {
   if (request.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 });
@@ -517,6 +629,14 @@ export default async (request) => {
     visibility = 'close';
     subject = subject.replace(/#close\b/ig, '');
   }
+
+  // #quiet posts without emailing her readers — for small updates and
+  // corrections. Taken out of the title, like #close.
+  let quiet = false;
+  if (/#quiet\b/i.test(subject)) {
+    quiet = true;
+    subject = subject.replace(/#quiet\b/ig, '');
+  }
   const title = subject.replace(/\s{2,}/g, ' ').trim() || 'Untitled';
 
   const body = trimReplyChrome(markdown);
@@ -576,7 +696,21 @@ export default async (request) => {
       console.error('Could not store the photos', e);
     }
 
-    console.log('Stored post:', title, visibility, photos + ' photo(s)');
+    // Tell her readers — only for a new post, not a relay retry of one
+    // already stored, and not when she asked for quiet. A failure here
+    // never loses the post: it is already saved.
+    let told = 0;
+    try {
+      const saved = JSON.parse(out);
+      if (saved && saved.action === 'created' && !quiet && visibility !== 'hidden') {
+        told = await tellReaders({ title, visibility, sender: sender.who });
+      }
+    } catch (e) {
+      console.error('Could not tell the readers', e);
+    }
+
+    console.log('Stored post:', title, visibility, photos + ' photo(s)',
+                quiet ? '(quiet)' : told + ' reader(s) told');
     return new Response(out, {
       status: 200, headers: { 'Content-Type': 'application/json' }
     });
