@@ -564,6 +564,9 @@ export default async (request) => {
           to read it. <strong>Please don&rsquo;t forward it, or pass on what
           ${esc(W.name)} has written.</strong> The link itself will not open for
           anyone else, but writing travels easily once it leaves here.</p>
+        ${again ? '' : `<p style="margin:16px 0 0;color:#6E6558;font-size:13px">You'll get a
+          short email when ${esc(W.name)} writes something new. There's a switch at the
+          bottom of the journal page if you'd rather not.</p>`}
       </div>`;
 
     try {
@@ -591,6 +594,8 @@ export default async (request) => {
             + `Please don't forward it, or pass on what ${W.name} has written. The `
             + `link itself will not open for anyone else, but writing travels `
             + `easily once it leaves here.`
+            + (again ? '' : `\n\nYou'll get a short email when ${W.name} writes something new. `
+              + `There's a switch at the bottom of the journal page if you'd rather not.`)
         })
       });
       if (!res.ok) {
@@ -734,7 +739,10 @@ export default async (request) => {
       `Volunteer: <strong>${esc(need.volunteer || '')}</strong>`,
       need.email ? `Email: ${esc(need.email)}` : '',
       '',
-      `<em>Next step: add them to the Outlook event and send the update.</em>`
+      // Their calendar invitation goes to them automatically. Adding them to
+      // the Outlook event itself is optional now, so this says so instead of
+      // giving the coordinator a job that isn't one.
+      `<em>A calendar invitation goes to them automatically — nothing for you to do.</em>`
     ];
   } else {
     subject = `Slot freed up: ${need.title}`;
@@ -747,9 +755,13 @@ export default async (request) => {
       `Someone who had signed up can no longer make it, so this is back`,
       `on the list for another friend to take.`,
       '',
+      // "invited" means a coordinator also added them to the Outlook event by
+      // hand — optional, and rarely done now. Only then is there anything to
+      // undo. It used to say "no Outlook invite had gone out" otherwise, which
+      // read as though the friend had never had an invitation at all.
       need.invited
-        ? `<strong>They were already on the Outlook invite — remove them from the event.</strong>`
-        : `<em>No Outlook invite had gone out yet, so there is nothing to undo.</em>`,
+        ? `<strong>They had also been added to the Outlook event itself — remove them there.</strong>`
+        : '',
       '',
       `${need.open_count} need${need.open_count === 1 ? '' : 's'} open right now.`
     ];
