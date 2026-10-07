@@ -147,6 +147,11 @@
      up into columns; a phone cannot promise columns at every width. */
   .body .tab{display:inline-block;width:2em}
   .body .w + .tablewrap,.body .tablewrap + .w{margin-top:8px}
+  .mailswitch{margin:30px 0 8px;padding-top:18px;border-top:1px solid var(--border)}
+  .mailswitch label{display:flex;align-items:center;gap:11px;font-size:.9rem;
+    color:var(--text);cursor:pointer}
+  .mailswitch input{width:20px;height:20px;margin:0;accent-color:var(--teal);flex:0 0 auto}
+  .mailnote{font-size:.8rem;color:var(--text-muted);margin:8px 0 0 31px;min-height:1em}
 
   .body .task{list-style:none;margin-left:-20px}
   .body .task .box{display:inline-block;width:1.05em;margin-right:.4em;
@@ -582,7 +587,9 @@
     if (!posts.length) {
       sub.textContent = '';
       content.innerHTML = '<div class="status">Nothing here yet. '
-        + 'When ' + esc(NAME()) + ' writes something, it will appear on this page.</div>';
+        + 'When ' + esc(NAME()) + ' writes something, it will appear on this page.</div>'
+        + emailSwitch();
+      loadEmailPref();
       return;
     }
     // The stored default says "Her"; if nobody has changed it, let it follow
@@ -641,8 +648,53 @@
         + '<div class="body">' + renderBody(p.body) + '</div>'
         + (shots ? '<div class="shots">' + shots + '</div>' : '')
         + '</div>';
-    }).join('');
+    }).join('') + emailSwitch();
+    loadEmailPref();
   }
+
+  // ---------- being told about new posts ----------
+  //
+  // Readers get an email when she writes something — the title and a link,
+  // never her words. On unless they turn it off; the switch lives here,
+  // where the emails point.
+  var postEmails = null;
+
+  function emailSwitch() {
+    return '<div class="mailswitch"><label>'
+      + '<input type="checkbox" id="postmail"' + (postEmails === false ? '' : ' checked') + ' />'
+      + '<span>Email me when ' + esc(NAME()) + ' writes something new</span></label>'
+      + '<p class="mailnote" id="postmail-note"></p></div>';
+  }
+
+  async function loadEmailPref() {
+    if (!me || !me.email) return;
+    try {
+      var r = await db.rpc('post_email_pref', { p_email: me.email });
+      if (!r.error) postEmails = r.data !== false;
+    } catch (e) {}
+    var box = document.getElementById('postmail');
+    if (box) box.checked = postEmails !== false;
+  }
+
+  document.addEventListener('change', async function (e) {
+    if (!e.target || e.target.id !== 'postmail') return;
+    var on = e.target.checked;
+    var note = document.getElementById('postmail-note');
+    var ok = false;
+    try {
+      var r = await db.rpc('set_post_emails', { p_email: me.email, p_on: on });
+      ok = !r.error && r.data && r.data.ok;
+    } catch (err) {}
+    if (!ok) {
+      e.target.checked = !on;
+      if (note) note.textContent = 'Could not change that just now. Please try again.';
+      return;
+    }
+    postEmails = on;
+    if (note) note.textContent = on
+      ? 'You\u2019ll get an email with the title and a link.'
+      : 'No emails. The number on the journal button still shows what\u2019s new.';
+  });
 
   async function load() {
     if (!SET.person_name) await loadWording();
