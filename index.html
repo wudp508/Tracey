@@ -1528,7 +1528,7 @@
       + '<input class="copyline" readonly value="'+esc(n.volunteer_email)+'" data-action="copy" data-key="e'+n.id+'" data-copy="'+esc(n.volunteer_email)+'" /></div>'
       + '<div class="field"><label>Event body'+c('b'+n.id)+'</label>'
       + '<textarea readonly data-action="copy" data-key="b'+n.id+'" data-copy="'+esc(inviteBody(n))+'">'+esc(inviteBody(n))+'</textarea></div>'
-      + '<button class="btn primary small" data-action="invited" data-id="'+n.id+'">Mark invite sent</button></div>';
+      + '<button class="btn primary small" data-action="invited" data-id="'+n.id+'">Mark as added in Outlook</button></div>';
   }
 
   function render(){
@@ -1593,7 +1593,7 @@
           + '<button class="btn primary" data-action="unlock">Unlock</button></div>';
         return;
       }
-      sub.textContent = 'Claims waiting on an Outlook invite, and everyone who has registered.';
+      sub.textContent = 'What\u2019s covered, what\u2019s still open, and everyone who has registered.';
       topStack.innerHTML = '';
       var all = coordData.needs || [], vols = coordData.volunteers || [];
       var pend = all.filter(function(n){ return n.status==='FILLED' && !n.invited; });
@@ -1657,7 +1657,9 @@
           + '<p class="ameta">' + fmtL(n.date) + ', ' + esc(n.start_time) + '<br>'
           +   '<strong>' + esc(n.volunteer_name || '') + '</strong>'
           +   (n.volunteer_email ? ' \u00b7 ' + esc(n.volunteer_email) : '')
-          +   (n.invited ? ' \u00b7 invite sent' : ' \u00b7 invite not sent yet') + '</p>'
+          // Every friend gets their invitation automatically; this only says
+          // whether someone also added them to the Outlook event by hand.
+          +   (n.invited ? ' \u00b7 also on the Outlook event' : '') + '</p>'
           + (String(n.instructions || '').trim()
               ? '<details class="instr"><summary>Details</summary>'
                 + '<p class="text">' + esc(String(n.instructions).trim()) + '</p></details>'
@@ -1941,7 +1943,7 @@
         // cancellations reached them on their own — so these are things
         // you may do, not things waiting on you, and a number in orange
         // says the opposite.
-        + sec('invites', 'Not on the Outlook invite list', 0,
+        + sec('invites', 'Optional: add to the Outlook event', 0,
               fPend.length
                 ? 'Nothing needs doing here. Changes and cancellations reach '
                   + 'these friends anyway; adding them to the Outlook event as '
